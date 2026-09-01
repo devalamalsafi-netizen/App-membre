@@ -1,12 +1,12 @@
 name: Build Android APK (Portail Membre)
 
-# Triggered manually or on pushes to master. Produces a debug APK you can
+# Triggered manually or on pushes to ai_main_fd88f290a6c54596ad0d. Produces a debug APK you can
 # install directly (Paramètres > Sécurité > Sources inconnues sur Android)
 # without needing a Play Store listing or a signing key.
 on:
   workflow_dispatch:
   push:
-    branches: [master]
+    branches: [ai_main_fd88f290a6c54596ad0d]
 
 jobs:
   build-apk:
