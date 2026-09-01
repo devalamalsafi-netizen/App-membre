@@ -1,5 +1,7 @@
 import { forwardRef } from "react";
 
+import organizationLogoUrl from "/organization-logo.webp";
+
 interface MemberBadgeProps {
   firstName: string;
   lastName: string;
@@ -94,7 +96,7 @@ export const MemberBadge = forwardRef<HTMLDivElement, MemberBadgeProps>(
               </p>
             </div>
             <img
-              src="/organization-logo.webp"
+              src={organizationLogoUrl}
               alt="شعار الكشفية الحسنية"
               style={{ width: "98px", height: "98px", objectFit: "contain" }}
             />
