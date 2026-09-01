@@ -34,9 +34,11 @@ jobs:
         # VITE_API_BASE_URL must point at the deployed Netlify site: the
         # packaged app has no local backend, every /api/* call needs the
         # full URL (see client/lib/api-config.ts).
-        env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+                env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_BADGE_ENCRYPTION_KEY: ${{ secrets.VITE_BADGE_ENCRYPTION_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: pnpm build:apk-web
 
       - name: Setup JDK 17
