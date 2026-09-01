@@ -218,4 +218,12 @@ jobs:
             -Pandroid.injected.signing.store.file=app/release.keystore \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$AN
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+
+      - name: Upload signed APK artifact
+        if: steps.check-secrets.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: portail-membre-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
