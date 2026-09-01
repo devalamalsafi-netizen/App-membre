@@ -1,5 +1,4 @@
 import { handleRegister } from "../../server/routes/auth";
-import { handleRegister } from "../../server/routes/auth";
 import { runExpressHandler } from "./_shared/express-shim";
 
 // Same rationale as auth-login.ts: native v2 function, reuses the existing
