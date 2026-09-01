@@ -50,12 +50,25 @@ body{font-family:Arial,sans-serif;background:#f4f4f7;padding:20px}.card{max-widt
 }
 
 export const handleSendEmail: RequestHandler = async (req, res) => {
-  const { destinataire, sujet, nom, message } = req.body ?? {};
+  const { destinataire, sujet, nom, message, attachments } = req.body ?? {};
   if (typeof destinataire !== "string" || !destinataire.trim() || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ ok: false, error: "destinataire et message sont requis." });
   }
 
   const email = destinataire.trim().toLowerCase();
+  const configuredSupabaseUrl = process.env.SUPABASE_URL;
+  const attachmentList = Array.isArray(attachments) ? attachments : [];
+  const allowedAttachmentOrigin = configuredSupabaseUrl ? new URL(configuredSupabaseUrl).origin : "";
+  const safeAttachments = attachmentList.filter(
+    (attachment): attachment is { filename: string; url: string } => {
+      if (!attachment || typeof attachment.filename !== "string" || typeof attachment.url !== "string") return false;
+      try {
+        return new URL(attachment.url).origin === allowedAttachmentOrigin;
+      } catch {
+        return false;
+      }
+    },
+  );
   const pin = generatePin();
   const supabase = getSupabaseAdminClient();
   const { error: insertError } = await supabase.from("pins").insert({ email, pin, used: false });
@@ -70,6 +83,7 @@ export const handleSendEmail: RequestHandler = async (req, res) => {
       to: email,
       subject: typeof sujet === "string" && sujet.trim() ? sujet.trim() : "Nouveau message depuis le site",
       html: buildHtmlEmail({ name: nom, message, pin }),
+      attachments: safeAttachments.map(({ filename, url }) => ({ filename, path: url })),
     });
     return res.json({ ok: true, id: info.messageId });
   } catch (error) {

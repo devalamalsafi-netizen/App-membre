@@ -41,6 +41,7 @@ export default function AccountConfirmation() {
   const [qrCode, setQrCode] = useState<string>("");
   const [generating, setGenerating] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [pin, setPin] = useState("");
   const [pinStatus, setPinStatus] = useState("");
   const autoGenerationStarted = useRef(false);
@@ -116,12 +117,42 @@ export default function AccountConfirmation() {
       setPdfUrl(result.user.pdf_url);
       setQrCode(result.user.qr_code_url);
       setPdfGenerated(true);
+      await sendDocumentsEmail(result.user.pdf_url, result.user.qr_code_url);
       console.info("Member documents persisted", result.user);
     } catch (error) {
       console.error("Error generating member documents:", error);
       alert("تعذر إنشاء وحفظ المستندات. يرجى المحاولة مرة أخرى.");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const sendDocumentsEmail = async (pdfUrl: string, qrUrl: string) => {
+    if (!registrationData.email) return;
+    setEmailSending(true);
+    try {
+      const response = await fetch(apiUrl("/api/send-email"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destinataire: registrationData.email,
+          sujet: "Vos documents d'inscription",
+          nom: `${registrationData.firstName || ""} ${registrationData.lastName || ""}`.trim(),
+          message: "Vous trouverez en pièces jointes votre carte de membre et votre QR code.",
+          attachments: [
+            { filename: `SHM_Account_${memberId}.pdf`, url: pdfUrl },
+            { filename: `SHM_Account_${memberId}.png`, url: qrUrl },
+          ],
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Documents non envoyés");
+      setPinStatus("تم إرسال البطاقة ورمز QR إلى بريدك الإلكتروني");
+    } catch (error) {
+      console.error("Documents email error:", error);
+      setPinStatus("تم إنشاء المستندات لكن تعذر إرسالها بالبريد الإلكتروني");
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -160,7 +191,12 @@ export default function AccountConfirmation() {
         body: JSON.stringify({ destinataire: registrationData.email, pin }),
       });
       const result = await response.json();
-      setPinStatus(result.ok ? "تم تأكيد البريد الإلكتروني بنجاح" : result.error || "رمز غير صحيح");
+      if (result.ok) {
+        setEmailVerified(true);
+        setPinStatus("تم تأكيد البريد الإلكتروني بنجاح");
+      } else {
+        setPinStatus(result.error || "رمز غير صحيح");
+      }
     } catch (error) {
       console.error("PIN verification error:", error);
       setPinStatus("تعذر التحقق من الرمز");
@@ -168,11 +204,11 @@ export default function AccountConfirmation() {
   };
 
   useEffect(() => {
-    if (!userId || !registrationData.firstName || autoGenerationStarted.current) return;
+    if (!emailVerified || !userId || !registrationData.firstName || autoGenerationStarted.current) return;
 
     autoGenerationStarted.current = true;
     void generatePDF();
-  }, [userId, registrationData.firstName, memberId]);
+  }, [emailVerified, userId, registrationData.firstName, memberId]);
 
   // Redirect if no data provided
   if (!userId || !registrationData.firstName) {
@@ -313,6 +349,8 @@ export default function AccountConfirmation() {
           </div>
         </div>
 
+        {emailVerified && (
+        <>
         {/* PDF and QR Code Section */}
         <div
           className="bg-white rounded-lg shadow-lg p-8 mb-8"
@@ -370,8 +408,10 @@ export default function AccountConfirmation() {
             </div>
           )}
         </div>
+        </>
+        )}
 
-        {registrationData.email && (
+        {!emailVerified && registrationData.email && (
           <div className="bg-white rounded-lg shadow-lg p-8 mb-8" style={{ borderRight: "4px solid #16a34a" }}>
             <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">تأكيد البريد الإلكتروني</h2>
             <p className="text-center text-gray-600 mb-4" dir="ltr">{registrationData.email}</p>
