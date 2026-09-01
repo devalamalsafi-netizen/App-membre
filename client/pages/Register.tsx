@@ -39,7 +39,8 @@ export default function Register() {
     guardianCin: "",
 
     // Contact info
-    userPhone: "+212",
+    userPhone: "",
+    email: "",
 
     fatherPhone: "",
     motherPhone: "",
@@ -146,11 +147,9 @@ export default function Register() {
   const validateStep3 = () => {
     const newErrors: Record<string, string> = {};
 
-    // Phone validation: +212 + 9 digits (5, 6, or 7)
-    const phoneValue = formData.userPhone.replace("+212", "");
-    const phoneRegex = /^[567]\d{8}$/;
-    if (!phoneValue || !phoneRegex.test(phoneValue)) {
-      newErrors.userPhone = "رقم الهاتف غير صحيح (9 أرقام تبدأ بـ 5 أو 6 أو 7)";
+    const phoneRegex = /^0[5678]\d{8}$/;
+    if (!phoneRegex.test(formData.userPhone)) {
+      newErrors.userPhone = "رقم الهاتف غير صحيح (10 أرقام تبدأ بـ 05 أو 06 أو 07 أو 08)";
     }
 
     setErrors(newErrors);
@@ -501,33 +500,48 @@ export default function Register() {
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">
+                    البريد الإلكتروني (اختياري)
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="example@email.com"
+                    autoComplete="email"
+                    dir="ltr"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
                     رقم هاتفك
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value="+212"
-                      disabled
-                      className="w-16 px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-center font-semibold"
-                    />
-                    <input
-                      type="text"
-                      name="userPhone"
-                      value={formData.userPhone.replace("+212", "")}
-                      onChange={(e) => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          userPhone: "+212" + e.target.value.replace(/\s+/g, "").slice(0, 9),
-                        }));
-                        setErrors((prev) => ({ ...prev, userPhone: "" }));
-                      }}
-                      placeholder="6xx xxx xxx"
-                      maxLength="9"
-                      className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 ${
-                        errors.userPhone ? "border-red-500" : "border-gray-300"
-                      }`}
-                    />
-                  </div>
+                  <input
+                    type="tel"
+                    name="userPhone"
+                    value={formData.userPhone}
+                    onChange={(e) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        userPhone: e.target.value.replace(/\D/g, "").slice(0, 10),
+                      }));
+                      setErrors((prev) => ({ ...prev, userPhone: "" }));
+                    }}
+                    placeholder="06 xx xx xx xx"
+                    inputMode="numeric"
+                    pattern="0[5678][0-9]{8}"
+                    maxLength={10}
+                    autoComplete="tel"
+                    dir="ltr"
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 ${
+                      errors.userPhone ? "border-red-500" : "border-gray-300"
+                    }`}
+                  />
+                  <p className="text-gray-500 text-xs mt-1" dir="rtl">
+                    10 أرقام تبدأ بـ 05 أو 06 أو 07 أو 08
+                  </p>
                   {errors.userPhone && (
                     <p className="text-red-500 text-sm mt-1">{errors.userPhone}</p>
                   )}
