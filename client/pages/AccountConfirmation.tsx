@@ -25,7 +25,9 @@ interface RegistrationData {
   guardianRelationship?: string;
   guardianPhone?: string;
   fatherPhone?: string;
+  motherPhone?: string;
   homePhone?: string;
+  additionalInfo?: string;
 }
 
 export default function AccountConfirmation() {
@@ -50,19 +52,22 @@ export default function AccountConfirmation() {
     setGenerating(true);
     try {
       const qrValue = await encryptBadgePayload({
-        id: memberId,
-        uuid: userId,
-        firstName: registrationData.firstName || "",
-        lastName: registrationData.lastName || "",
-        birthDate: registrationData.birthDate || null,
-        phone: registrationData.userPhone || null,
-        patrol: registrationData.patrol || null,
-        role: registrationData.roleName || registrationData.role || null,
-        gender: registrationData.gender || null,
-        isHighPatrol: registrationData.isHighPatrol ?? null,
+        i: memberId,
+        f: registrationData.firstName || "",
+        l: registrationData.lastName || "",
+        b: registrationData.birthDate || null,
+        gf: registrationData.guardianFirstName || null,
+        gl: registrationData.guardianLastName || null,
+        gp: registrationData.guardianPhone || registrationData.fatherPhone || null,
+        gp2: registrationData.motherPhone || null,
+        m: registrationData.additionalInfo || null,
       });
+      // Le payload chiffré tient désormais sur quelques dizaines de
+      // caractères (plus de page HTML embarquée), donc on peut se
+      // permettre une correction d'erreur plus robuste ("Q") sans
+      // risquer de dépasser la capacité du QR.
       const qrCodeDataUrl = await QRCode.toDataURL(qrValue, {
-        errorCorrectionLevel: "M",
+        errorCorrectionLevel: "Q",
         type: "image/png",
         width: 420,
         margin: 2,
