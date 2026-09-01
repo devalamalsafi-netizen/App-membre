@@ -1,5 +1,4 @@
 import { handleLogin } from "../../server/routes/auth";
-import { handleLogin } from "../../server/routes/auth";
 import { runExpressHandler } from "./_shared/express-shim";
 
 // Netlify Functions v2: native Fetch API (Request -> Response), no
