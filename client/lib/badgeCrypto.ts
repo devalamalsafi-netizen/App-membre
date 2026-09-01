@@ -24,36 +24,36 @@
  *     public/private key. Rotating the key means updating it in both
  *     repos at the same time, or old badges stop decrypting.
  *
- * Wire format (what ends up inside the QR):
- *   data:text/html;base64,<...styled HTML card for stock camera apps...>
- *   containing a <script type="application/json" id="d"> tag whose
- *   body is: { "v": "S2", "e": "<encrypted-payload-base64url>" }
+ * Wire format v S3 (what ends up inside the QR):
+ *   "S3.<encrypted-payload-base64url>"
+ *   (plain text, NOT a data:text/html page -- a stock camera app that
+ *   scans this just sees an opaque token like "S3.aBcD12...", never
+ *   any personal info, which satisfies the "no leak on generic scan"
+ *   requirement without paying for an HTML/base64 wrapper.)
  *
  *   <encrypted-payload-base64url> decodes to:
  *     [12 bytes random IV] + [AES-GCM ciphertext, tag included]
  *
  * The decrypted plaintext (UTF-8) is itself JSON -- see
- * BadgeMemberPayload below for the field list.
+ * BadgeMemberPayload below. Deliberately kept to the minimum needed
+ * for (a) presence/absence: id + name, and (b) emergencies: birth
+ * date + guardian contacts + medical/additional info. NOT a copy of
+ * the member's full file (no phone, patrol, role, gender...) -- that
+ * belongs on the PDF, not the QR.
  */
 
-const FORMAT_VERSION = "S2";
+const FORMAT_VERSION = "S3";
 
 export interface BadgeMemberPayload {
-  id: string; // generated_id (human-facing scout ID)
-  uuid: string; // internal member UUID (primary key)
-  firstName: string;
-  lastName: string;
-  birthDate: string | null;
-  phone: string | null;
-  patrol: string | null;
-  role: string | null;
-  gender: string | null;
-  isHighPatrol: boolean | null;
-}
-
-export interface EncryptedBadgeEnvelope {
-  v: typeof FORMAT_VERSION;
-  e: string; // base64url(iv + ciphertext)
+  i: string; // id (generated_id, human-facing scout ID) -- used for presence/absence
+  f: string; // firstName
+  l: string; // lastName
+  b: string | null; // birthDate
+  gf: string | null; // guardianFirstName (tuteur/père/mère)
+  gl: string | null; // guardianLastName
+  gp: string | null; // guardianPhone (contact prioritaire, ex: père)
+  gp2: string | null; // guardianPhone2 (contact secondaire, ex: mère), si existant
+  m: string | null; // medicalInfo -- antécédents médicaux / traitements ("informations supplémentaires")
 }
 
 // ---- key handling -----------------------------------------------------
@@ -112,8 +112,11 @@ async function getKey(): Promise<CryptoKey> {
 /**
  * Encrypts a member's badge payload. Call this from the members
  * portal when generating a badge (registration, badge reprint, etc).
- * Returns the full `data:text/html;base64,...` string ready to feed
- * to a QR-code generator.
+ * Returns a short opaque token ("S3.<base64url>") ready to feed
+ * straight to a QR-code generator. Scanned by a stock camera app, it
+ * shows only that meaningless token -- no HTML page, no personal
+ * data -- which is what keeps the QR light enough to actually fit in
+ * a scannable code even with medical/guardian info included.
  */
 export async function encryptBadgePayload(
   payload: BadgeMemberPayload,
@@ -132,35 +135,7 @@ export async function encryptBadgePayload(
   combined.set(iv, 0);
   combined.set(new Uint8Array(ciphertext), iv.length);
 
-  const envelope: EncryptedBadgeEnvelope = {
-    v: FORMAT_VERSION,
-    e: bytesToBase64Url(combined),
-  };
-
-  const html = buildBadgeHtml(payload, envelope);
-  return `data:text/html;base64,${btoa(unescape(encodeURIComponent(html)))}`;
-}
-
-/**
- * The visual card shown when someone scans the badge with a stock
- * camera app (no decryption available to them). Keep this
- * intentionally sparse -- it must NOT leak the same personal details
- * the encryption is meant to protect. Adjust styling freely; just
- * don't put firstName/lastName/phone/etc. in here in the clear.
- */
-function buildBadgeHtml(
-  payload: BadgeMemberPayload,
-  envelope: EncryptedBadgeEnvelope,
-): string {
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Badge SHM</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f3f4f6}.card{background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:32px;text-align:center;max-width:320px}.badge{font-size:14px;color:#6b7280;margin-top:12px}</style></head><body><div class="card"><strong>Badge Scout SHM</strong><p class="badge">Identifiant : ${escapeHtml(payload.id)}</p><p class="badge">À scanner avec l'application officielle.</p></div><script type="application/json" id="d">${JSON.stringify(envelope)}</script></body></html>`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return `${FORMAT_VERSION}.${bytesToBase64Url(combined)}`;
 }
 
 // ---- decrypt (chefs portal side) ---------------------------------------
@@ -176,19 +151,11 @@ export interface DecodedBadge {
  * function -- see memberBadge.ts).
  */
 export async function decryptBadgePayload(raw: string): Promise<DecodedBadge> {
-  const prefix = "data:text/html;base64,";
+  const prefix = `${FORMAT_VERSION}.`;
   if (!raw.startsWith(prefix)) return { valid: false };
 
   try {
-    const base64 = raw.slice(prefix.length);
-    const html = decodeURIComponent(escape(atob(base64)));
-    const match = html.match(/<script type="application\/json" id="d">(.*?)<\/script>/s);
-    if (!match) return { valid: false };
-
-    const envelope = JSON.parse(match[1]) as EncryptedBadgeEnvelope;
-    if (envelope.v !== FORMAT_VERSION || !envelope.e) return { valid: false };
-
-    const combined = base64UrlToBytes(envelope.e);
+    const combined = base64UrlToBytes(raw.slice(prefix.length));
     const iv = combined.slice(0, 12);
     const ciphertext = combined.slice(12);
 
@@ -203,7 +170,7 @@ export async function decryptBadgePayload(raw: string): Promise<DecodedBadge> {
       new TextDecoder().decode(plaintextBuffer),
     ) as BadgeMemberPayload;
 
-    if (!payload.id || !payload.uuid) return { valid: false };
+    if (!payload.i || !payload.f) return { valid: false };
 
     return { valid: true, payload };
   } catch {
