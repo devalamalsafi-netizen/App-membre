@@ -19,6 +19,7 @@ import {
   handleCreateReport,
 } from "./routes/content";
 import { requireAuth } from "./middleware/requireAuth";
+import { handleSendEmail, handleVerifyPin } from "./routes/email";
 
 export function createServer() {
   const app = express();
@@ -62,6 +63,9 @@ export function createServer() {
     const ping = process.env.PING_MESSAGE ?? "ping";
     res.json({ message: ping });
   });
+
+  app.post("/api/send-email", handleSendEmail);
+  app.post("/api/verify-pin", handleVerifyPin);
 
   app.get("/api/demo", handleDemo);
 
