@@ -27,6 +27,7 @@ interface RegistrationData {
   fatherPhone?: string;
   motherPhone?: string;
   homePhone?: string;
+  email?: string;
   additionalInfo?: string;
 }
 
@@ -39,6 +40,9 @@ export default function AccountConfirmation() {
   const [pdfUrl, setPdfUrl] = useState<string>("");
   const [qrCode, setQrCode] = useState<string>("");
   const [generating, setGenerating] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinStatus, setPinStatus] = useState("");
   const autoGenerationStarted = useRef(false);
 
   // Get registration data from location state
@@ -118,6 +122,48 @@ export default function AccountConfirmation() {
       alert("تعذر إنشاء وحفظ المستندات. يرجى المحاولة مرة أخرى.");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const sendConfirmationEmail = async () => {
+    if (!registrationData.email) return;
+    setEmailSending(true);
+    setPinStatus("");
+    try {
+      const response = await fetch(apiUrl("/api/send-email"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destinataire: registrationData.email,
+          sujet: "Confirmation de votre inscription",
+          nom: `${registrationData.firstName || ""} ${registrationData.lastName || ""}`.trim(),
+          message: "Votre demande d'inscription a été reçue. Utilisez le PIN ci-dessous pour confirmer votre adresse email.",
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Email non envoyé");
+      setPinStatus("تم إرسال رمز التأكيد إلى بريدك الإلكتروني");
+    } catch (error) {
+      console.error("Confirmation email error:", error);
+      setPinStatus("تعذر إرسال رمز التأكيد");
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const verifyConfirmationPin = async () => {
+    if (!registrationData.email || pin.length !== 6) return;
+    try {
+      const response = await fetch(apiUrl("/api/verify-pin"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destinataire: registrationData.email, pin }),
+      });
+      const result = await response.json();
+      setPinStatus(result.ok ? "تم تأكيد البريد الإلكتروني بنجاح" : result.error || "رمز غير صحيح");
+    } catch (error) {
+      console.error("PIN verification error:", error);
+      setPinStatus("تعذر التحقق من الرمز");
     }
   };
 
@@ -324,6 +370,42 @@ export default function AccountConfirmation() {
             </div>
           )}
         </div>
+
+        {registrationData.email && (
+          <div className="bg-white rounded-lg shadow-lg p-8 mb-8" style={{ borderRight: "4px solid #16a34a" }}>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">تأكيد البريد الإلكتروني</h2>
+            <p className="text-center text-gray-600 mb-4" dir="ltr">{registrationData.email}</p>
+            <button
+              type="button"
+              onClick={sendConfirmationEmail}
+              disabled={emailSending}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg"
+            >
+              {emailSending ? "جاري الإرسال..." : "إرسال رمز التأكيد"}
+            </button>
+            <div className="flex gap-2 mt-4">
+              <input
+                type="text"
+                value={pin}
+                onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="رمز من 6 أرقام"
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-center"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={verifyConfirmationPin}
+                disabled={pin.length !== 6}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold px-5 rounded-lg"
+              >
+                تأكيد
+              </button>
+            </div>
+            {pinStatus && <p className="text-center text-sm mt-3 text-gray-600">{pinStatus}</p>}
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex gap-4">

@@ -1,36 +1,29 @@
 import { randomInt } from "node:crypto";
 import nodemailer from "nodemailer";
+import { createClient } from "@supabase/supabase-js";
 import type { RequestHandler } from "express";
 
-const PIN_TTL_MS = 10 * 60 * 1000;
-const pinStore = new Map<string, { pin: string; expiresAt: number; used: boolean }>();
+const PIN_TTL_MS = 5 * 60 * 1000;
 
-const smtpPort = Number(process.env.SMTP_PORT || 587);
+function getSupabaseAdminClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase admin credentials are missing.");
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: smtpPort,
+  port: Number(process.env.SMTP_PORT || 587),
   secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
 });
 
 if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   transporter.verify((error) => {
-    if (error) {
-      console.error("Erreur de connexion SMTP :", error.message);
-    } else {
-      console.info("Connexion SMTP OK, prêt à envoyer des emails.");
-    }
+    if (error) console.error("Erreur de connexion SMTP :", error.message);
+    else console.info("Connexion SMTP OK, prêt à envoyer des emails.");
   });
-}
-
-function cleanExpiredPins() {
-  const now = Date.now();
-  for (const [recipient, entry] of pinStore) {
-    if (entry.expiresAt <= now) pinStore.delete(recipient);
-  }
 }
 
 function generatePin() {
@@ -51,66 +44,79 @@ function buildHtmlEmail({ name, message, pin }: { name?: string; message: string
   const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br/>");
 
   return `<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><style>
-body{font-family:Arial,sans-serif;background:#f4f4f7;padding:20px}
-.card{max-width:600px;margin:auto;background:#fff;border-radius:8px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-h1{color:#2c3e50;font-size:20px}p{color:#444;line-height:1.5}.pin{display:inline-block;margin:16px 0;padding:12px 24px;font-size:28px;letter-spacing:6px;font-weight:bold;color:#fff;background:#2c3e50;border-radius:6px}.footer{margin-top:20px;font-size:12px;color:#999;text-align:center}
-</style></head>
-<body><div class="card"><h1>Nouveau message de ${safeName}</h1><p>${safeMessage}</p><p>Code de confirmation :</p><div class="pin">${pin}</div><p>Ce code expire dans 10 minutes et ne peut être utilisé qu'une seule fois.</p></div><div class="footer">Envoyé automatiquement depuis le site web</div></body>
-</html>`;
+<html lang="fr"><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;background:#f4f4f7;padding:20px}.card{max-width:600px;margin:auto;background:#fff;border-radius:8px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.08)}h1{color:#2c3e50;font-size:20px}p{color:#444;line-height:1.5}.pin{display:inline-block;margin:16px 0;padding:12px 24px;font-size:28px;letter-spacing:6px;font-weight:bold;color:#fff;background:#2c3e50;border-radius:6px}.footer{margin-top:20px;font-size:12px;color:#999;text-align:center}
+</style></head><body><div class="card"><h1>Nouveau message de ${safeName}</h1><p>${safeMessage}</p><p>Code de confirmation :</p><div class="pin">${pin}</div><p>Ce code expire dans 5 minutes et ne peut être utilisé qu'une seule fois.</p></div><div class="footer">Envoyé automatiquement depuis le site web</div></body></html>`;
 }
 
 export const handleSendEmail: RequestHandler = async (req, res) => {
   const { destinataire, sujet, nom, message } = req.body ?? {};
-
   if (typeof destinataire !== "string" || !destinataire.trim() || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ ok: false, error: "destinataire et message sont requis." });
   }
 
-  const recipient = destinataire.trim().toLowerCase();
-  cleanExpiredPins();
+  const email = destinataire.trim().toLowerCase();
   const pin = generatePin();
-  pinStore.set(recipient, { pin, expiresAt: Date.now() + PIN_TTL_MS, used: false });
+  const supabase = getSupabaseAdminClient();
+  const { error: insertError } = await supabase.from("pins").insert({ email, pin, used: false });
+  if (insertError) {
+    console.error("Erreur de stockage du PIN :", insertError);
+    return res.status(500).json({ ok: false, error: "Impossible de stocker le PIN." });
+  }
 
   try {
     const info = await transporter.sendMail({
       from: `"${escapeHtml(nom || "Site Web")}" <${process.env.SMTP_USER}>`,
-      to: recipient,
+      to: email,
       subject: typeof sujet === "string" && sujet.trim() ? sujet.trim() : "Nouveau message depuis le site",
       html: buildHtmlEmail({ name: nom, message, pin }),
     });
-
     return res.json({ ok: true, id: info.messageId });
   } catch (error) {
-    pinStore.delete(recipient);
     console.error("Erreur d'envoi email :", error);
     return res.status(500).json({ ok: false, error: "Échec de l'envoi de l'email." });
   }
 };
 
-export const handleVerifyPin: RequestHandler = (req, res) => {
+export const handleVerifyPin: RequestHandler = async (req, res) => {
   const { destinataire, pin } = req.body ?? {};
-
   if (typeof destinataire !== "string" || !destinataire.trim() || pin === undefined || pin === null || String(pin).trim() === "") {
     return res.status(400).json({ ok: false, error: "destinataire et pin sont requis." });
   }
 
-  cleanExpiredPins();
-  const recipient = destinataire.trim().toLowerCase();
-  const entry = pinStore.get(recipient);
+  const email = destinataire.trim().toLowerCase();
+  const supabase = getSupabaseAdminClient();
+  const { data: entry, error: selectError } = await supabase
+    .from("pins")
+    .select("id, pin, generated_at, used")
+    .eq("email", email)
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!entry) {
-    return res.status(400).json({ ok: false, error: "Aucun PIN actif pour cette adresse (expiré ou jamais envoyé)." });
+  if (selectError) {
+    console.error("Erreur de lecture du PIN :", selectError);
+    return res.status(500).json({ ok: false, error: "Impossible de vérifier le PIN." });
   }
-  if (entry.used) {
-    return res.status(400).json({ ok: false, error: "Ce PIN a déjà été utilisé." });
+  if (!entry) return res.status(400).json({ ok: false, error: "PIN introuvable." });
+  if (entry.used) return res.status(400).json({ ok: false, error: "Ce PIN a déjà été utilisé." });
+  if (new Date(entry.generated_at).getTime() + PIN_TTL_MS <= Date.now()) {
+    return res.status(400).json({ ok: false, error: "Ce PIN a expiré." });
   }
-  if (entry.pin !== String(pin).trim()) {
-    return res.status(400).json({ ok: false, error: "PIN incorrect." });
-  }
+  if (entry.pin !== String(pin).trim()) return res.status(400).json({ ok: false, error: "PIN incorrect." });
 
-  entry.used = true;
-  pinStore.delete(recipient);
+  const { data: consumed, error: updateError } = await supabase
+    .from("pins")
+    .update({ used: true })
+    .eq("id", entry.id)
+    .eq("used", false)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    console.error("Erreur de consommation du PIN :", updateError);
+    return res.status(500).json({ ok: false, error: "Impossible de confirmer le PIN." });
+  }
+  if (!consumed) return res.status(400).json({ ok: false, error: "Ce PIN a déjà été utilisé." });
   return res.json({ ok: true, message: "Confirmation réussie." });
 };
