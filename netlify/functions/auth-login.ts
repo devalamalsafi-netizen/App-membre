@@ -5,6 +5,6 @@ import { runExpressHandler } from "./_shared/express-shim";
 // serverless-http, no Express in the request path. Reuses the existing,
 // already-correct handleLogin business logic from server/routes/auth.ts
 // unchanged -- only the transport differs.
-export const handler = async (req: Request): Promise<Response> => {
+export default async (req: Request): Promise<Response> => {
   return runExpressHandler(handleLogin, req);
 };
