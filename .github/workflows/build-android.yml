@@ -34,7 +34,7 @@ jobs:
         # VITE_API_BASE_URL must point at the deployed Netlify site: the
         # packaged app has no local backend, every /api/* call needs the
         # full URL (see client/lib/api-config.ts).
-                env:
+        env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_BADGE_ENCRYPTION_KEY: ${{ secrets.VITE_BADGE_ENCRYPTION_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -159,8 +159,10 @@ jobs:
       - name: Build web assets for the APK
         if: steps.check-secrets.outputs.skip == 'false'
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_BADGE_ENCRYPTION_KEY: ${{ secrets.VITE_BADGE_ENCRYPTION_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: pnpm build:apk-web
 
       - name: Setup JDK 17
@@ -216,12 +218,4 @@ jobs:
             -Pandroid.injected.signing.store.file=app/release.keystore \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
-
-      - name: Upload signed APK artifact
-        if: steps.check-secrets.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: portail-membre-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
+            -Pandroid.injected.signing.key.password="$AN
