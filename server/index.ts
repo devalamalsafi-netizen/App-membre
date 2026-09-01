@@ -2,7 +2,13 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
-import { handleRegister, handleLogin, handleGetProfile, handleSavePdfQrCode } from "./routes/auth";
+import {
+  handleRegister,
+  handleLogin,
+  handleGetProfile,
+  handleSavePdfQrCode,
+  handleGetRegistrationOptions,
+} from "./routes/auth";
 import { handleConfirmPin, handleGetAttendance, handleVerifyQr } from "./routes/attendance";
 import {
   handleGetDocuments,
@@ -60,6 +66,7 @@ export function createServer() {
   app.get("/api/demo", handleDemo);
 
   // Authentication routes
+  app.get("/api/auth/options", handleGetRegistrationOptions);
   app.post("/api/auth/register", handleRegister);
   app.post("/api/auth/login", handleLogin);
   app.get("/api/auth/profile", handleGetProfile);

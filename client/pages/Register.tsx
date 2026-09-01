@@ -52,25 +52,22 @@ export default function Register() {
     confirmPassword: "",
   });
 
-  // Load patrols and roles from database (mock for now)
   useEffect(() => {
-    // TODO: Fetch from Supabase
-    setPatrols([
-      { id: "1", name: "دورية 1" },
-      { id: "2", name: "دورية 2" },
-      { id: "3", name: "دورية 3" },
-      { id: "4", name: "دورية 4" },
-    ]);
-    
-    setRoles([
-      { id: "1", name: "رائد" },
-      { id: "2", name: "مساعد" },
-      { id: "3", name: "كاتب" },
-      { id: "4", name: "مراقب الزي" },
-      { id: "5", name: "عضو 1" },
-      { id: "6", name: "عضو 2" },
-      { id: "7", name: "عضو 3" },
-    ]);
+    fetch(apiUrl("/api/auth/options"))
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error((await response.json()).error || "Impossible de charger les options");
+        }
+        return response.json();
+      })
+      .then(({ patrols: availablePatrols, roles: availableRoles }) => {
+        setPatrols(availablePatrols);
+        setRoles(availableRoles);
+      })
+      .catch((error) => {
+        console.error("Registration options error:", error);
+        alert("❌ Impossible de charger les rôles et les patrouilles");
+      });
   }, []);
 
   const normalizeFieldValue = (name: string, value: string) => {

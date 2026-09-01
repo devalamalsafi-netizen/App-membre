@@ -70,6 +70,24 @@ async function ensureBucket(adminClient: ReturnType<typeof getSupabaseAdminClien
  * Register a new user
  * Inserts user data into Supabase users table
  */
+export const handleGetRegistrationOptions: RequestHandler = async (_req, res) => {
+  try {
+    const adminClient = getSupabaseAdminClient();
+    const [{ data: patrols, error: patrolsError }, { data: roles, error: rolesError }] = await Promise.all([
+      adminClient.from("patrols").select("id, name").order("name"),
+      adminClient.from("roles").select("id, name").order("name"),
+    ]);
+
+    if (patrolsError) throw patrolsError;
+    if (rolesError) throw rolesError;
+
+    return res.json({ patrols: patrols ?? [], roles: roles ?? [] });
+  } catch (error) {
+    console.error("Registration options error:", error);
+    return res.status(500).json({ error: "Unable to load registration options" });
+  }
+};
+
 export const handleRegister: RequestHandler = async (req, res) => {
   try {
     const {
