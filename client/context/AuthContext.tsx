@@ -19,6 +19,7 @@ export interface User {
   first_name: string;
   last_name: string;
   user_phone: string;
+  email?: string;
   gender: string;
   token?: string;
 }

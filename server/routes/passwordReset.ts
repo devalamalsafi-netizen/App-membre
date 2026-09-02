@@ -25,7 +25,7 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
     const { first_name, last_name, generated_id, uuid, guardian_cin, email } = req.body || {};
     if (!first_name || !last_name || !generated_id || !uuid || !guardian_cin || !email) return res.status(400).json({ ok: false, error: "Tous les champs sont requis." });
     const adminClient = getSupabaseAdminClient();
-    const { data: user, error } = await adminClient.from("users").select("id, first_name, last_name, generated_id, guardian_cin, email").eq("id", normalizeIdentifier(uuid)).eq("generated_id", normalizeIdentifier(generated_id)).maybeSingle();
+    const { data: user, error } = await adminClient.from("users").select("id, first_name, last_name, generated_id, guardian_cin, user_email").eq("id", normalizeIdentifier(uuid)).eq("generated_id", normalizeIdentifier(generated_id)).maybeSingle();
     if (error) {
       console.info("[password-reset] user lookup", { hasError: true, userFound: user !== null });
       console.error("Erreur recherche utilisateur (reset password):", error);

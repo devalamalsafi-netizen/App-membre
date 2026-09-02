@@ -108,12 +108,14 @@ export const handleRegister: RequestHandler = async (req, res) => {
       mother_phone,
       home_phone,
       additional_info,
+      email,
       password,
     } = req.body;
 
     const normalizedFirstName = normalizeIdentifier(first_name);
     const normalizedLastName = normalizeIdentifier(last_name);
     const normalizedUserPhone = normalizeIdentifier(user_phone);
+    const normalizedEmail = normalizeIdentifier(email);
 
     // Validate required fields
     if (
@@ -122,6 +124,7 @@ export const handleRegister: RequestHandler = async (req, res) => {
       !birth_date ||
       !gender ||
       !normalizedUserPhone ||
+      !normalizedEmail ||
       !patrol_id ||
       !role_id ||
       !password
@@ -141,6 +144,7 @@ export const handleRegister: RequestHandler = async (req, res) => {
           birth_date,
           gender,
           user_phone: normalizedUserPhone,
+          user_email: normalizedEmail,
           patrol_id,
           role_id,
           is_high_patrol: is_high_patrol || false,
@@ -170,7 +174,8 @@ export const handleRegister: RequestHandler = async (req, res) => {
             birth_date,
             gender,
             user_phone: normalizedUserPhone,
-            patrol_id,
+          user_email: normalizedEmail,
+          patrol_id,
             role_id,
             is_high_patrol: is_high_patrol || false,
             guardian_first_name,
@@ -204,6 +209,7 @@ export const handleRegister: RequestHandler = async (req, res) => {
       first_name: data.first_name,
       last_name: data.last_name,
       user_phone: data.user_phone,
+      email: data.user_email,
       gender: data.gender,
     });
   } catch (error) {
@@ -233,7 +239,7 @@ export const handleLogin: RequestHandler = async (req, res) => {
     // Compare normalized values so legacy rows containing accidental spaces remain usable.
     const { data: candidates, error } = await getSupabaseAdminClient()
       .from("users")
-      .select("id, generated_id, first_name, last_name, user_phone, gender, password");
+      .select("id, generated_id, first_name, last_name, user_phone, user_email, gender, password");
 
     const data = candidates?.find((candidate) =>
       normalizeIdentifier(candidate.first_name) === normalizedFirstName
@@ -290,6 +296,7 @@ export const handleLogin: RequestHandler = async (req, res) => {
       first_name: data.first_name,
       last_name: data.last_name,
       user_phone: data.user_phone,
+      email: data.user_email,
       gender: data.gender,
       token,
     });
