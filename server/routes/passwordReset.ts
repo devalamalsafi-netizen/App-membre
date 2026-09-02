@@ -26,9 +26,25 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
     if (!first_name || !last_name || !generated_id || !uuid || !guardian_cin || !email) return res.status(400).json({ ok: false, error: "Tous les champs sont requis." });
     const adminClient = getSupabaseAdminClient();
     const { data: user, error } = await adminClient.from("users").select("id, first_name, last_name, generated_id, guardian_cin, email").eq("id", normalizeIdentifier(uuid)).eq("generated_id", normalizeIdentifier(generated_id)).maybeSingle();
-    if (error) { console.error("Erreur recherche utilisateur (reset password):", error); return res.json(GENERIC_RESPONSE); }
-    const matches = user && normalizeIdentifier(user.first_name) === normalizeIdentifier(first_name) && normalizeIdentifier(user.last_name) === normalizeIdentifier(last_name) && normalizeIdentifier(user.guardian_cin) === normalizeIdentifier(guardian_cin);
-    if (!matches) return res.json(GENERIC_RESPONSE);
+    if (error) {
+      console.info("[password-reset] user lookup", { hasError: true, userFound: user !== null });
+      console.error("Erreur recherche utilisateur (reset password):", error);
+      return res.json(GENERIC_RESPONSE);
+    }
+    console.info("[password-reset] user lookup", { hasError: false, userFound: user !== null });
+    const normalizedUserFirstName = user ? normalizeIdentifier(user.first_name) : "";
+    const normalizedUserLastName = user ? normalizeIdentifier(user.last_name) : "";
+    const normalizedUserGuardianCin = user ? normalizeIdentifier(user.guardian_cin) : "";
+    const matches = user && normalizedUserFirstName === normalizeIdentifier(first_name) && normalizedUserLastName === normalizeIdentifier(last_name) && normalizedUserGuardianCin === normalizeIdentifier(guardian_cin);
+    if (!matches) {
+      console.info("[password-reset] identity comparison", {
+        userFound: user !== null,
+        firstName: { provided: normalizeIdentifier(first_name), stored: normalizedUserFirstName, matches: normalizedUserFirstName === normalizeIdentifier(first_name) },
+        lastName: { provided: normalizeIdentifier(last_name), stored: normalizedUserLastName, matches: normalizedUserLastName === normalizeIdentifier(last_name) },
+        guardianCin: { provided: normalizeIdentifier(guardian_cin), stored: normalizedUserGuardianCin, matches: normalizedUserGuardianCin === normalizeIdentifier(guardian_cin) },
+      });
+      return res.json(GENERIC_RESPONSE);
+    }
     const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000).toISOString();
     const { data: tokenRow, error: tokenError } = await adminClient.from("password_reset_tokens").insert({ user_id: user.id, expires_at: expiresAt }).select("token").single();
     if (tokenError || !tokenRow) { console.error("Erreur création token reset:", tokenError); return res.json(GENERIC_RESPONSE); }
