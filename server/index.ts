@@ -20,6 +20,7 @@ import {
 } from "./routes/content";
 import { requireAuth } from "./middleware/requireAuth";
 import { handleSendEmail, handleVerifyPin } from "./routes/email";
+import { handleRequestPasswordReset, handleResetPassword } from "./routes/passwordReset";
 
 export function createServer() {
   const app = express();
@@ -75,6 +76,8 @@ export function createServer() {
   app.post("/api/auth/login", handleLogin);
   app.get("/api/auth/profile", handleGetProfile);
   app.post("/api/auth/save-documents", handleSavePdfQrCode);
+  app.post("/api/auth/request-password-reset", handleRequestPasswordReset);
+  app.post("/api/auth/reset-password", handleResetPassword);
 
   app.get("/api/attendance", requireAuth, handleGetAttendance);
   app.post("/api/attendance/verify-qr", requireAuth, handleVerifyQr);
