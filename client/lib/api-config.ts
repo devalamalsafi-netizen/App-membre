@@ -17,7 +17,8 @@
 import { Capacitor } from "@capacitor/core";
 
 function resolveApiBaseUrl(): string {
-  const configured = (import.meta.env.VITE_API_BASE_URL || "https://mon-shm.netlify.app").trim().replace(/\/+$/, "");
+  const productionBaseUrl = "https://mon-shm.netlify.app";
+  const configured = (import.meta.env.VITE_API_BASE_URL || productionBaseUrl).trim().replace(/\/+$/, "");
 
   if (Capacitor.isNativePlatform()) {
     if (!configured) {
@@ -31,8 +32,8 @@ function resolveApiBaseUrl(): string {
     return configured;
   }
 
-  // Web build: relative paths work, no prefix needed.
-  return configured;
+  // Web preview and production both use the deployed API.
+  return productionBaseUrl;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
