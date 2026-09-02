@@ -162,7 +162,7 @@ export default function Login() {
                 هل نسيت كلمة المرور؟
               </p>
               <Link
-                to="#"
+                to="/forgot-password"
                 className="block text-center text-scout-purple font-bold hover:text-purple-700 transition-colors mb-6"
               >
                 إعادة تعيين كلمة المرور
