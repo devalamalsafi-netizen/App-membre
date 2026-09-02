@@ -10,7 +10,6 @@ import {
   type StoredSession,
   type SessionValidity,
 } from "@/lib/offline/sessionStore";
-import { clearAllOfflineCaches } from "@/lib/offline/memberCache";
 import { hasPendingSyncItems } from "@/lib/offline/syncEngine";
 import { onAuthExpired } from "@/lib/offline/authEvents";
 
@@ -96,7 +95,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     const hadPendingSync = await hasPendingSyncItems();
     clearSession();
-    await clearAllOfflineCaches();
     setSession(null);
     setSessionExpired(false);
     return { hadPendingSync };

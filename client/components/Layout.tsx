@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import Header from "./Header";
 import Footer from "./Footer";
 import Sidebar from "./Sidebar";
-import OfflineStatusBar from "./OfflineStatusBar";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -20,7 +19,6 @@ export default function Layout({ children, currentPage, showHamburger = true }: 
   return (
     <div className="min-h-screen bg-scout-cream flex flex-col" dir="rtl">
       <Header hamburgerVisible={showNavigation} onHamburgerClick={toggleSidebar} />
-      <OfflineStatusBar />
       {showNavigation && <Sidebar />}
 
 

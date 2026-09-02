@@ -2,10 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import { apiUrl } from "@/lib/api-config";
-import { useNetworkStatus } from "@/lib/offline/network";
-import { cacheMemberProfile, getCachedMemberProfile } from "@/lib/offline/memberCache";
-import type { OfflineMemberProfile } from "@/lib/offline/types";
-import { WifiOff } from "lucide-react";
 
 interface MemberProfile {
   id: string;
@@ -46,106 +42,19 @@ interface RoleInfo {
   name: string;
 }
 
-function toOfflineProfile(data: MemberProfile, patrolName?: string | null, roleName?: string | null): OfflineMemberProfile {
-  return {
-    id: data.id,
-    generated_id: data.generated_id,
-    first_name: data.first_name,
-    last_name: data.last_name,
-    birth_date: data.birth_date,
-    gender: data.gender,
-    user_phone: data.user_phone,
-    home_phone: data.home_phone,
-    father_phone: data.father_phone,
-    mother_phone: data.mother_phone,
-    patrol_id: data.patrol_id != null ? String(data.patrol_id) : null,
-    patrol_name: patrolName ?? null,
-    role_id: data.role_id != null ? String(data.role_id) : null,
-    role_name: roleName ?? null,
-    is_high_patrol: data.is_high_patrol,
-    guardian_first_name: data.guardian_first_name,
-    guardian_last_name: data.guardian_last_name,
-    guardian_relationship: data.guardian_relationship,
-    guardian_cin: data.guardian_cin,
-    additional_info: data.additional_info,
-    pdf_url: data.pdf_url,
-    qr_code_url: data.qr_code_url,
-    documents_generated_at: data.documents_generated_at,
-    payment_completed: data.payment_completed,
-    documents_completed: data.documents_completed,
-  };
-}
-
-function computeAge(birthDateStr: string): number {
-  if (!birthDateStr) return 0;
-  const birthDate = new Date(birthDateStr);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const hasHadBirthdayThisYear =
-    today.getMonth() > birthDate.getMonth() ||
-    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
-  if (!hasHadBirthdayThisYear) age -= 1;
-  return age;
-}
-
-function fromOfflineProfile(data: OfflineMemberProfile): MemberProfile {
-  return {
-    id: data.id,
-    generated_id: data.generated_id,
-    first_name: data.first_name,
-    last_name: data.last_name,
-    birth_date: data.birth_date,
-    age: computeAge(data.birth_date),
-    gender: data.gender,
-    patrol_id: data.patrol_id as unknown as number,
-    role_id: data.role_id as unknown as number,
-    is_high_patrol: !!data.is_high_patrol,
-    user_phone: data.user_phone,
-    guardian_first_name: data.guardian_first_name || "",
-    guardian_last_name: data.guardian_last_name || "",
-    guardian_relationship: data.guardian_relationship || "",
-    guardian_cin: data.guardian_cin || "",
-    father_phone: data.father_phone || "",
-    mother_phone: data.mother_phone || "",
-    home_phone: data.home_phone || "",
-    additional_info: data.additional_info || "",
-    pdf_url: data.pdf_url || "",
-    qr_code_url: data.qr_code_url || "",
-    documents_generated_at: data.documents_generated_at || "",
-    payment_completed: !!data.payment_completed,
-    documents_completed: !!data.documents_completed,
-    created_at: "",
-    updated_at: "",
-  };
-}
 
 export default function MyProfile() {
   const { user } = useAuth();
-  const { isOnline } = useNetworkStatus();
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [patrol, setPatrol] = useState<PatrolInfo | null>(null);
   const [role, setRole] = useState<RoleInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isFromCache, setIsFromCache] = useState(false);
-  const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"personal" | "guardian" | "documents">("personal");
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadFromCache = async (memberId: string) => {
-      const cached = await getCachedMemberProfile(memberId);
-      if (cached && !cancelled) {
-        setProfile(fromOfflineProfile(cached.data));
-        if (cached.data.patrol_name) setPatrol({ id: 0 as unknown as number, name: cached.data.patrol_name } as PatrolInfo);
-        if (cached.data.role_name) setRole({ id: 0 as unknown as number, name: cached.data.role_name } as RoleInfo);
-        setIsFromCache(true);
-        setCachedAt(cached.cachedAt);
-        return true;
-      }
-      return false;
-    };
 
     const fetchProfile = async () => {
       const generatedId = user?.generated_id;
@@ -155,14 +64,6 @@ export default function MyProfile() {
         return;
       }
 
-      // Offline: skip straight to cache, never show a blank/error page.
-      if (!isOnline) {
-        const memberIdForCache = user?.id || generatedId!;
-        const found = await loadFromCache(memberIdForCache);
-        if (!found) setError("لا تتوفر بيانات محفوظة بعد. يرجى الاتصال بالإنترنت مرة واحدة على الأقل.");
-        setLoading(false);
-        return;
-      }
 
       try {
         const response = await fetch(apiUrl(`/api/auth/profile?generated_id=${encodeURIComponent(generatedId!)}`));
@@ -170,11 +71,7 @@ export default function MyProfile() {
 
         if (!response.ok || !data) {
           console.error("Erreur profil:", data?.error);
-          // Network reachable but query failed: fall back to any cached copy
-          // rather than leaving the member with a dead end.
-          const memberIdForCache = user?.id || generatedId!;
-          const found = await loadFromCache(memberIdForCache);
-          if (!found) setError("Impossible de charger les données");
+          setError("Impossible de charger les données");
           return;
         }
 
@@ -185,17 +82,9 @@ export default function MyProfile() {
 
         if (cancelled) return;
         setProfile(data as MemberProfile);
-        setIsFromCache(false);
-        setCachedAt(null);
-
-        await cacheMemberProfile(data.id, toOfflineProfile(data as MemberProfile, patrolName, roleName));
       } catch (err) {
         console.error("Erreur:", err);
-        // Any unexpected failure (including a network blip mid-request):
-        // try the cache before giving up.
-        const memberIdForCache = user?.id || generatedId!;
-        const found = await loadFromCache(memberIdForCache);
-        if (!found) setError("Erreur lors du chargement");
+        setError("Erreur lors du chargement");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -207,7 +96,7 @@ export default function MyProfile() {
     return () => {
       cancelled = true;
     };
-  }, [user, isOnline]);
+  }, [user]);
 
   if (loading) {
     return (
@@ -240,17 +129,6 @@ export default function MyProfile() {
         <p className="text-gray-600">
           معرّفك: <span className="font-bold text-purple-600">{profile.generated_id}</span>
         </p>
-        {isFromCache && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-bold text-amber-800">
-            <WifiOff size={14} />
-            وضعية عدم الاتصال — بيانات محفوظة
-            {cachedAt && (
-              <span className="font-normal text-amber-700">
-                (آخر تحديث: {new Date(cachedAt).toLocaleString("ar-MA")})
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Tabs */}

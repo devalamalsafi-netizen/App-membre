@@ -2,19 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import { apiUrl } from "@/lib/api-config";
-import { useNetworkStatus } from "@/lib/offline/network";
-import { getCachedMemberProfile } from "@/lib/offline/memberCache";
-import { WifiOff } from "lucide-react";
-
-/**
- * Membership ("adhésion") status. Single source of truth, per the
- * project's own rule: no separate membership table/history exists in
- * the real schema -- both flags live directly on `users`. This page
- * reads them from the SAME cached profile record MyProfile.tsx already
- * fetches and caches (client/lib/offline/memberCache.ts), rather than
- * maintaining a second, independent cache that could silently drift
- * out of sync with the profile page.
- */
 
 type Status = "both" | "payment_only" | "documents_only" | "none";
 
@@ -34,26 +21,14 @@ const STATUS_LABELS: Record<Status, { title: string; tone: string }> = {
 
 export default function Membership() {
   const { user } = useAuth();
-  const { isOnline } = useNetworkStatus();
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [documentsCompleted, setDocumentsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isFromCache, setIsFromCache] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadFromCache = async (memberId: string) => {
-      const cached = await getCachedMemberProfile(memberId);
-      if (cached && !cancelled) {
-        setPaymentCompleted(!!cached.data.payment_completed);
-        setDocumentsCompleted(!!cached.data.documents_completed);
-        setIsFromCache(true);
-        return true;
-      }
-      return false;
-    };
 
     const load = async () => {
       const generatedId = user?.generated_id;
@@ -62,35 +37,20 @@ export default function Membership() {
         setLoading(false);
         return;
       }
-      const memberIdForCache = user?.id || generatedId!;
-
-      if (!isOnline) {
-        const found = await loadFromCache(memberIdForCache);
-        if (!found) setError("لا تتوفر بيانات محفوظة بعد. يرجى الاتصال بالإنترنت مرة واحدة على الأقل.");
-        setLoading(false);
-        return;
-      }
-
       try {
         const response = await fetch(apiUrl(`/api/auth/profile?generated_id=${encodeURIComponent(generatedId!)}`));
         const data = await response.json().catch(() => null);
 
         if (!response.ok || !data) {
-          const found = await loadFromCache(memberIdForCache);
-          if (!found) setError("Impossible de charger les données");
+          setError("Impossible de charger les données");
           return;
         }
 
         if (cancelled) return;
         setPaymentCompleted(!!data.payment_completed);
         setDocumentsCompleted(!!data.documents_completed);
-        setIsFromCache(false);
-        // Note: no separate cache write here on purpose -- MyProfile.tsx
-        // already writes the full cached profile (including these same
-        // two fields) whenever it fetches. This page only reads.
       } catch (err) {
-        const found = await loadFromCache(memberIdForCache);
-        if (!found) setError("Erreur lors du chargement");
+        setError("Erreur lors du chargement");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -102,7 +62,7 @@ export default function Membership() {
     return () => {
       cancelled = true;
     };
-  }, [user, isOnline]);
+  }, [user]);
 
   const status = computeStatus(paymentCompleted, documentsCompleted);
   const statusInfo = STATUS_LABELS[status];
@@ -113,12 +73,6 @@ export default function Membership() {
         <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-l from-red-600 to-purple-600 bg-clip-text text-transparent mb-2">
           حالة الانخراط
         </h1>
-        {isFromCache && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-bold text-amber-800">
-            <WifiOff size={14} />
-            وضعية عدم الاتصال — بيانات محفوظة
-          </div>
-        )}
       </div>
 
       {loading ? (
