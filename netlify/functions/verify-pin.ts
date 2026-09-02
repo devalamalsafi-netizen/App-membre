@@ -1,4 +1,5 @@
 import { handleVerifyPin } from "../../server/routes/email";
+import { handleVerifyPin } from "../../server/routes/email";
 import { runExpressHandler } from "./_shared/express-shim";
 
  export default async (req: Request): Promise<Response> => {
