@@ -17,7 +17,7 @@
 import { Capacitor } from "@capacitor/core";
 
 function resolveApiBaseUrl(): string {
-  const configured = (import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+  const configured = (import.meta.env.VITE_API_BASE_URL || "https://mon-shm.netlify.app").trim().replace(/\/+$/, "");
 
   if (Capacitor.isNativePlatform()) {
     if (!configured) {
