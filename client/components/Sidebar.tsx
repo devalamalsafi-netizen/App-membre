@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { hasPendingSyncItems } from "@/lib/offline/syncEngine";
 import {
-  ChevronLeft,
   User,
   LogOut,
   Home,
@@ -89,17 +88,23 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
+      <div
+        role="button"
+        tabIndex={0}
         aria-label={isOpen ? "إغلاق القائمة" : "فتح القائمة"}
         aria-expanded={isOpen}
-        className={`fixed top-1/2 -translate-y-1/2 z-[60] h-16 w-8 rounded-l-lg bg-scout-purple text-white shadow-lg transition-[right] duration-300 flex items-center justify-center ${
+        title={isOpen ? "إغلاق القائمة" : "فتح القائمة"}
+        onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsOpen((open) => !open);
+          }
+        }}
+        className={`fixed top-0 h-screen w-[5px] z-[60] cursor-pointer bg-scout-purple shadow-lg transition-[right] duration-300 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
           isOpen ? "right-64" : "right-0"
         }`}
-      >
-        <ChevronLeft size={20} className={isOpen ? "rotate-180" : ""} />
-      </button>
+      />
 
       {isOpen && <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setIsOpen(false)} />}
       <div className={`hidden lg:block transition-all duration-300 ${isOpen ? "w-64" : "w-0"}`} />
