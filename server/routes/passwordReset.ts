@@ -35,13 +35,15 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
     const normalizedUserFirstName = user ? normalizeIdentifier(user.first_name) : "";
     const normalizedUserLastName = user ? normalizeIdentifier(user.last_name) : "";
     const normalizedUserGuardianCin = user ? normalizeIdentifier(user.guardian_cin) : "";
-    const matches = user && normalizedUserFirstName === normalizeIdentifier(first_name) && normalizedUserLastName === normalizeIdentifier(last_name) && normalizedUserGuardianCin === normalizeIdentifier(guardian_cin);
+    const normalizedUserEmail = user ? normalizeIdentifier(user.user_email) : "";
+    const matches = user && normalizedUserFirstName === normalizeIdentifier(first_name) && normalizedUserLastName === normalizeIdentifier(last_name) && normalizedUserGuardianCin === normalizeIdentifier(guardian_cin) && normalizedUserEmail === normalizeIdentifier(email);
     if (!matches) {
       console.info("[password-reset] identity comparison", {
         userFound: user !== null,
         firstName: { provided: normalizeIdentifier(first_name), stored: normalizedUserFirstName, matches: normalizedUserFirstName === normalizeIdentifier(first_name) },
         lastName: { provided: normalizeIdentifier(last_name), stored: normalizedUserLastName, matches: normalizedUserLastName === normalizeIdentifier(last_name) },
         guardianCin: { provided: normalizeIdentifier(guardian_cin), stored: normalizedUserGuardianCin, matches: normalizedUserGuardianCin === normalizeIdentifier(guardian_cin) },
+        email: { matches: normalizedUserEmail === normalizeIdentifier(email) },
       });
       return res.json(GENERIC_RESPONSE);
     }
@@ -52,7 +54,7 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
     if (!apiKey) { console.error("BREVO_API_KEY manquante (reset password)"); return res.json(GENERIC_RESPONSE); }
     const resetUrl = `${RESET_BASE_URL}/reset-password?token=${tokenRow.token}`;
     const htmlContent = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1f2937;"><h2 style="color:#7c2d12;">Réinitialisation de votre mot de passe</h2><p>Bonjour ${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)},</p><p>Vous avez demandé la réinitialisation de votre mot de passe. Ce lien est valable <strong>${TOKEN_TTL_MINUTES} minutes</strong> :</p><p><a href="${resetUrl}" style="display:inline-block; margin: 12px 0; padding: 10px 18px; background:#7c2d12; color:#fff; text-decoration:none; border-radius:6px;">Réinitialiser mon mot de passe</a></p><p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p><hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;" /><p style="font-size: 13px; color: #6b7280;">${CONTACT_LINE}</p></div>`;
-    const brevoResponse = await fetch(BREVO_API_URL, { method: "POST", headers: { accept: "application/json", "content-type": "application/json", "api-key": apiKey }, body: JSON.stringify({ sender: { name: SENDER_NAME, email: SENDER_EMAIL }, to: [{ email, name: `${user.first_name} ${user.last_name}`.trim() }], subject: "Réinitialisation de votre mot de passe", htmlContent }) });
+    const brevoResponse = await fetch(BREVO_API_URL, { method: "POST", headers: { accept: "application/json", "content-type": "application/json", "api-key": apiKey }, body: JSON.stringify({ sender: { name: SENDER_NAME, email: SENDER_EMAIL }, to: [{ email: user.user_email, name: `${user.first_name} ${user.last_name}`.trim() }], subject: "Réinitialisation de votre mot de passe", htmlContent }) });
     if (!brevoResponse.ok) console.error("Erreur Brevo (reset password):", brevoResponse.status, await brevoResponse.json().catch(() => ({})));
     return res.json(GENERIC_RESPONSE);
   } catch (error) { console.error("Erreur handleRequestPasswordReset:", error); return res.json(GENERIC_RESPONSE); }
