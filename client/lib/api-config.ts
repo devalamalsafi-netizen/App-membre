@@ -54,4 +54,4 @@
 
 export const isNativeApp = Capacitor.isNativePlatform();
                                                                                                      
- */
+ 
