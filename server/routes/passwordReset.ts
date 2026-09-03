@@ -26,7 +26,7 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
     const { first_name, last_name, generated_id, uuid, guardian_cin, email } = req.body || {};
     if (!first_name || !last_name || !generated_id || !uuid || !guardian_cin || !email) return res.status(400).json({ ok: false, error: "Tous les champs sont requis." });
     const adminClient = getSupabaseAdminClient();
-    const { data: user, error } = await adminClient.from("users").select("id, first_name, last_name, generated_id, guardian_cin, email").eq("id", normalizeIdentifier(uuid)).eq("generated_id", normalizeIdentifier(generated_id)).maybeSingle();
+    const { data: user, error } = await adminClient.from("users").select("id, first_name, last_name, generated_id, guardian_cin, email").eq("id", String(uuid).trim()).maybeSingle();
     if (error) {
       console.info("[password-reset] user lookup", { hasError: true, userFound: user !== null });
       console.error("Erreur recherche utilisateur (reset password):", error);
@@ -35,12 +35,14 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
     console.info("[password-reset] user lookup", { hasError: false, userFound: user !== null });
     const normalizedUserFirstName = user ? normalizeIdentifier(user.first_name) : "";
     const normalizedUserLastName = user ? normalizeIdentifier(user.last_name) : "";
+    const normalizedUserGeneratedId = user ? normalizeIdentifier(user.generated_id) : "";
     const normalizedUserGuardianCin = user ? normalizeIdentifier(user.guardian_cin) : "";
     const normalizedUserEmail = user ? normalizeIdentifier(user.email) : "";
-    const matches = Boolean(user && normalizedUserFirstName === normalizeIdentifier(first_name) && normalizedUserLastName === normalizeIdentifier(last_name) && normalizedUserGuardianCin === normalizeIdentifier(guardian_cin) && normalizedUserEmail === normalizeIdentifier(email));
+    const matches = Boolean(user && normalizedUserGeneratedId === normalizeIdentifier(generated_id) && normalizedUserFirstName === normalizeIdentifier(first_name) && normalizedUserLastName === normalizeIdentifier(last_name) && normalizedUserGuardianCin === normalizeIdentifier(guardian_cin) && normalizedUserEmail === normalizeIdentifier(email));
     if (!matches) {
       console.info("[password-reset] identity comparison", {
         userFound: user !== null,
+        generatedId: { provided: normalizeIdentifier(generated_id), stored: normalizedUserGeneratedId, matches: normalizedUserGeneratedId === normalizeIdentifier(generated_id) },
         firstName: { provided: normalizeIdentifier(first_name), stored: normalizedUserFirstName, matches: normalizedUserFirstName === normalizeIdentifier(first_name) },
         lastName: { provided: normalizeIdentifier(last_name), stored: normalizedUserLastName, matches: normalizedUserLastName === normalizeIdentifier(last_name) },
         guardianCin: { provided: normalizeIdentifier(guardian_cin), stored: normalizedUserGuardianCin, matches: normalizedUserGuardianCin === normalizeIdentifier(guardian_cin) },
