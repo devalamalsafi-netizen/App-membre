@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { hasPendingSyncItems } from "@/lib/offline/syncEngine";
 import {
-  ChevronLeft,
+  Menu,
   User,
   LogOut,
   Home,
@@ -35,7 +35,7 @@ export default function Sidebar() {
       <aside
         dir="rtl"
         className={`fixed right-0 top-0 h-screen w-64 bg-white border-r-4 border-scout-purple shadow-lg transition-transform duration-300 z-50 flex flex-col ${
-          isOpen ? "translate-x-0" : "translate-x-[calc(100%-25px)]"
+          isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <div className="h-20 flex items-center justify-center border-b border-gray-200 bg-gradient-to-b from-scout-purple to-purple-600">
@@ -89,25 +89,18 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-label={isOpen ? "إغلاق القائمة" : "فتح القائمة"}
         aria-expanded={isOpen}
         title={isOpen ? "إغلاق القائمة" : "فتح القائمة"}
         onClick={() => setIsOpen((open) => !open)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            setIsOpen((open) => !open);
-          }
-        }}
-        className={`fixed top-0 h-20 w-[25px] z-[60] cursor-pointer bg-scout-purple shadow-lg transition-[right] duration-300 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 flex items-center justify-center ${
-          isOpen ? "right-64" : "right-0"
+        className={`fixed top-4 z-[60] h-10 w-10 rounded-lg bg-scout-purple text-white shadow-lg transition-[right] duration-300 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 flex items-center justify-center ${
+          isOpen ? "right-64" : "right-4"
         }`}
       >
-        <ChevronLeft size={18} className={`text-white transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </div>
+        <Menu size={22} />
+      </button>
 
       {isOpen && <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setIsOpen(false)} />}
       <div className={`hidden lg:block transition-all duration-300 ${isOpen ? "w-64" : "w-0"}`} />
