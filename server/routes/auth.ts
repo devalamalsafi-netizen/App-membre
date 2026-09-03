@@ -144,7 +144,7 @@ export const handleRegister: RequestHandler = async (req, res) => {
           birth_date,
           gender,
           user_phone: normalizedUserPhone,
-          user_email: normalizedEmail,
+          email: normalizedEmail,
           patrol_id,
           role_id,
           is_high_patrol: is_high_patrol || false,
@@ -174,7 +174,7 @@ export const handleRegister: RequestHandler = async (req, res) => {
             birth_date,
             gender,
             user_phone: normalizedUserPhone,
-            user_email: normalizedEmail,
+            email: normalizedEmail,
             patrol_id,
             role_id,
             is_high_patrol: is_high_patrol || false,
@@ -209,7 +209,7 @@ export const handleRegister: RequestHandler = async (req, res) => {
       first_name: data.first_name,
       last_name: data.last_name,
       user_phone: data.user_phone,
-      email: data.user_email,
+      email: data.email,
       gender: data.gender,
     });
   } catch (error) {
@@ -239,7 +239,7 @@ export const handleLogin: RequestHandler = async (req, res) => {
     // Compare normalized values so legacy rows containing accidental spaces remain usable.
     const { data: candidates, error } = await getSupabaseAdminClient()
       .from("users")
-      .select("id, generated_id, first_name, last_name, user_phone, user_email, gender, password");
+      .select("id, generated_id, first_name, last_name, user_phone, email, gender, password");
 
     const data = candidates?.find((candidate) =>
       normalizeIdentifier(candidate.first_name) === normalizedFirstName
@@ -296,7 +296,7 @@ export const handleLogin: RequestHandler = async (req, res) => {
       first_name: data.first_name,
       last_name: data.last_name,
       user_phone: data.user_phone,
-      email: data.user_email,
+      email: data.email,
       gender: data.gender,
       token,
     });
