@@ -50,8 +50,9 @@ async function sendResetPin(email: string, name: string, pin: string) {
   await transporter.sendMail({
     from: `"Scoutisme Hassania" <${smtpUser}>`,
     to: email,
-    subject: "Code de réinitialisation - Scoutisme Hassania",
-    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#1f2937"><h2>Réinitialisation du mot de passe</h2><p>Bonjour ${escapeHtml(name)},</p><p>Votre code de réinitialisation est :</p><p style="font-size:30px;font-weight:bold;letter-spacing:8px">${escapeHtml(pin)}</p><p>Ce code expire dans 5 minutes et ne peut être utilisé qu’une seule fois.</p></div>`,
+    subject: "Votre code PIN de récupération - Scoutisme Hassania",
+    text: `Bonjour ${name},\n\nVotre code PIN de récupération est : ${pin}\n\nCe code expire dans 5 minutes et ne peut être utilisé qu’une seule fois. Saisissez-le sur la page de récupération pour choisir un nouveau mot de passe.`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#1f2937"><h2>Votre code PIN de récupération</h2><p>Bonjour ${escapeHtml(name)},</p><p>Voici le code PIN à saisir sur la page de récupération :</p><p style="font-size:30px;font-weight:bold;letter-spacing:8px;background:#f3f4f6;padding:16px;text-align:center">${escapeHtml(pin)}</p><p>Ce code expire dans 5 minutes et ne peut être utilisé qu’une seule fois.</p><p>Après validation du code, vous pourrez choisir un nouveau mot de passe.</p></div>`,
   });
 }
 
