@@ -1,14 +1,15 @@
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
+import { randomInt } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import type { RequestHandler } from "express";
+
+const PIN_TTL_MS = 5 * 60 * 1000;
 
 function getSupabaseAdminClient() {
   const supabaseUrl = process.env.SUPABASE_URL || "";
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase admin credentials.");
-  }
+  if (!supabaseUrl || !serviceRoleKey) throw new Error("Missing Supabase admin credentials.");
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -27,15 +28,17 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-const IDENTITY_ERROR =
-  "Identité non vérifiée. Vérifiez le nom, le prénom, l’ID et l’UUID.";
+function maskEmail(email: string): string {
+  const [localPart, domain] = email.split("@", 2);
+  return localPart && domain ? `${localPart.slice(0, 2)}****@${domain}` : email;
+}
 
-async function notifyPasswordReset(email: string, name: string, uuid: string) {
+const IDENTITY_ERROR = "Identité non vérifiée. Vérifiez le nom, le prénom, l’ID et l’UUID.";
+
+async function sendResetPin(email: string, name: string, pin: string) {
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
-  if (!smtpUser || !smtpPass) {
-    throw new Error("SMTP_USER et SMTP_PASS doivent être configurés.");
-  }
+  if (!smtpUser || !smtpPass) throw new Error("SMTP_USER et SMTP_PASS doivent être configurés.");
 
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.gmail.com",
@@ -43,88 +46,127 @@ async function notifyPasswordReset(email: string, name: string, uuid: string) {
     secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : true,
     auth: { user: smtpUser, pass: smtpPass },
   });
-  const safeName = escapeHtml(name);
-  const safeUuid = escapeHtml(uuid);
 
   await transporter.sendMail({
     from: `"Scoutisme Hassania" <${smtpUser}>`,
     to: email,
-    subject: "Mot de passe réinitialisé - Scoutisme Hassania",
-    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#1f2937"><h2>Mot de passe réinitialisé</h2><p>Bonjour ${safeName},</p><p>Votre mot de passe a été réinitialisé. Utilisez votre UUID comme nouveau mot de passe lors de votre prochaine connexion.</p><p><strong>UUID :</strong> ${safeUuid}</p><p>Si vous n’êtes pas à l’origine de cette demande, contactez immédiatement l’administrateur.</p></div>`,
+    subject: "Code de réinitialisation - Scoutisme Hassania",
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#1f2937"><h2>Réinitialisation du mot de passe</h2><p>Bonjour ${escapeHtml(name)},</p><p>Votre code de réinitialisation est :</p><p style="font-size:30px;font-weight:bold;letter-spacing:8px">${escapeHtml(pin)}</p><p>Ce code expire dans 5 minutes et ne peut être utilisé qu’une seule fois.</p></div>`,
   });
+}
+
+async function findMember(adminClient: ReturnType<typeof getSupabaseAdminClient>, input: Record<string, unknown>) {
+  const uuid = typeof input.uuid === "string" ? input.uuid.trim() : "";
+  const firstName = normalize(input.first_name);
+  const lastName = normalize(input.last_name);
+  const generatedId = normalize(input.generated_id);
+  if (!uuid || !firstName || !lastName || !generatedId) return null;
+
+  const { data: user, error } = await adminClient
+    .from("users")
+    .select("id, first_name, last_name, generated_id, email")
+    .eq("id", uuid)
+    .maybeSingle();
+  if (error) throw error;
+
+  if (
+    !user ||
+    normalize(user.first_name) !== firstName ||
+    normalize(user.last_name) !== lastName ||
+    normalize(user.generated_id) !== generatedId ||
+    !normalize(user.email)
+  ) return null;
+
+  return user;
+}
+
+async function findValidPin(adminClient: ReturnType<typeof getSupabaseAdminClient>, email: string, pin: string) {
+  const { data: entry, error } = await adminClient
+    .from("pins")
+    .select("id, email, pin, generated_at, used")
+    .eq("email", email)
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!entry || entry.used) return null;
+  if (new Date(entry.generated_at).getTime() + PIN_TTL_MS <= Date.now()) return null;
+  return entry.pin === pin ? entry : null;
 }
 
 export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
   try {
-    const { first_name, last_name, generated_id, uuid } = req.body || {};
-    const normalizedFirstName = normalize(first_name);
-    const normalizedLastName = normalize(last_name);
-    const normalizedGeneratedId = normalize(generated_id);
-    const normalizedUuid = typeof uuid === "string" ? uuid.trim() : "";
-
-    if (!normalizedFirstName || !normalizedLastName || !normalizedGeneratedId || !normalizedUuid) {
-      return res.status(400).json({
-        ok: false,
-        error: "Nom, prénom, ID et UUID sont requis.",
-      });
-    }
-
     const adminClient = getSupabaseAdminClient();
-    const { data: user, error } = await adminClient
-      .from("users")
-      .select("id, first_name, last_name, generated_id, email")
-      .eq("id", normalizedUuid)
-      .maybeSingle();
+    const user = await findMember(adminClient, req.body || {});
+    if (!user) return res.status(400).json({ ok: false, error: IDENTITY_ERROR });
 
-    if (error) {
-      console.error("Erreur recherche utilisateur (reset password):", error);
-      return res.status(500).json({ ok: false, error: "Impossible de vérifier votre identité." });
-    }
-
-    if (
-      !user ||
-      normalize(user.first_name) !== normalizedFirstName ||
-      normalize(user.last_name) !== normalizedLastName ||
-      normalize(user.generated_id) !== normalizedGeneratedId ||
-      !normalize(user.email)
-    ) {
-      return res.status(400).json({ ok: false, error: IDENTITY_ERROR });
-    }
-
-    const passwordHash = await bcrypt.hash(normalizedUuid, 12);
-    const { error: updateError } = await adminClient
-      .from("users")
-      .update({ password: passwordHash })
-      .eq("id", user.id);
-
-    if (updateError) {
-      console.error("Erreur mise à jour mot de passe:", updateError);
-      return res.status(500).json({ ok: false, error: "Impossible de mettre à jour le mot de passe." });
+    const email = String(user.email).trim().toLowerCase();
+    const pin = String(randomInt(100000, 1000000));
+    const { error: insertError } = await adminClient.from("pins").insert({ email, pin, used: false });
+    if (insertError) {
+      console.error("Erreur création PIN reset:", insertError);
+      return res.status(500).json({ ok: false, error: "Impossible de créer le code de réinitialisation." });
     }
 
     try {
-      await notifyPasswordReset(
-        String(user.email),
-        `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-        normalizedUuid,
-      );
-    } catch (notificationError) {
-      console.error("Erreur SMTP Gmail (notification reset):", notificationError);
+      await sendResetPin(email, `${user.first_name || ""} ${user.last_name || ""}`.trim(), pin);
+    } catch (emailError) {
+      console.error("Erreur SMTP Gmail (PIN reset):", emailError);
+      return res.status(500).json({ ok: false, error: "Impossible d’envoyer le code par e-mail." });
     }
 
-    return res.json({
-      ok: true,
-      message: "Mot de passe réinitialisé. Vous pouvez vous connecter avec votre UUID.",
-    });
+    return res.json({ ok: true, email: maskEmail(email), message: "Un code de réinitialisation a été envoyé par e-mail." });
   } catch (error) {
     console.error("Erreur handleRequestPasswordReset:", error);
     return res.status(500).json({ ok: false, error: "Impossible de traiter la demande." });
   }
 };
 
-export const handleResetPassword: RequestHandler = async (_req, res) => {
-  return res.status(410).json({
-    ok: false,
-    error: "Ce lien n’est plus utilisé. Recommencez avec votre nom, prénom, ID et UUID.",
-  });
+export const handleResetPassword: RequestHandler = async (req, res) => {
+  try {
+    const { pin, newPassword } = req.body || {};
+    const normalizedPin = typeof pin === "string" ? pin.trim() : String(pin || "").trim();
+    if (!/^\d{6}$/.test(normalizedPin)) {
+      return res.status(400).json({ ok: false, error: "Le code PIN doit contenir 6 chiffres." });
+    }
+
+    const adminClient = getSupabaseAdminClient();
+    const user = await findMember(adminClient, req.body || {});
+    if (!user) return res.status(400).json({ ok: false, error: IDENTITY_ERROR });
+
+    const email = String(user.email).trim().toLowerCase();
+    const pinEntry = await findValidPin(adminClient, email, normalizedPin);
+    if (!pinEntry) return res.status(400).json({ ok: false, error: "Code invalide, expiré ou déjà utilisé." });
+
+    if (newPassword === undefined) {
+      return res.json({ ok: true, message: "Code PIN confirmé." });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({ ok: false, error: "Le nouveau mot de passe doit contenir au moins 6 caractères." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const { error: updateError } = await adminClient.from("users").update({ password: passwordHash }).eq("id", user.id);
+    if (updateError) {
+      console.error("Erreur mise à jour mot de passe:", updateError);
+      return res.status(500).json({ ok: false, error: "Impossible de mettre à jour le mot de passe." });
+    }
+
+    const { data: consumedPin, error: consumeError } = await adminClient
+      .from("pins")
+      .update({ used: true })
+      .eq("id", pinEntry.id)
+      .eq("used", false)
+      .select("id")
+      .maybeSingle();
+    if (consumeError || !consumedPin) {
+      console.error("Erreur consommation PIN reset:", consumeError);
+      return res.status(500).json({ ok: false, error: "Le mot de passe a été modifié, mais le code n’a pas pu être clôturé." });
+    }
+
+    return res.json({ ok: true, message: "Mot de passe mis à jour avec succès." });
+  } catch (error) {
+    console.error("Erreur handleResetPassword:", error);
+    return res.status(500).json({ ok: false, error: "Impossible de mettre à jour le mot de passe." });
+  }
 };

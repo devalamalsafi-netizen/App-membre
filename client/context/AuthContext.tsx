@@ -6,7 +6,6 @@ import {
   loadSession,
   clearSession,
   evaluateSession,
-  touchSession,
   type StoredSession,
   type SessionValidity,
 } from "@/lib/offline/sessionStore";
@@ -28,16 +27,16 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  /** True once we've determined the local 20-day session has expired (vs simply absent). */
+  /** True when the server rejected an authenticated session. */
   sessionExpired: boolean;
   session: StoredSession | null;
   sessionValidity: SessionValidity;
   login: (firstName: string, lastName: string, generatedId: string, password: string) => Promise<void>;
   logout: () => Promise<{ hadPendingSync: boolean }>;
   setAuthUser: (user: User) => void;
-  /** Call when the server responds 401 to a live API call while a local session exists: the JWT truly expired. */
+  /** Call when the server responds 401 to a live API call while a local session exists. */
   handleAuthExpiredFromServer: () => void;
-  /** Push the 20-day expiry back out from now. Call on meaningful navigation/actions. */
+  /** Kept for compatibility with existing navigation tracking. */
   renewSession: () => void;
 }
 
@@ -48,26 +47,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
-  // Restore session on mount. This never touches the network: a valid
-  // local session is honored purely based on the stored expiry date.
+  // Restore the local session before the first authenticated render. The
+  // WebView localStorage used by Capacitor persists across app restarts.
   useEffect(() => {
-    const stored = loadSession();
-    const validity = evaluateSession(stored);
-
-    if (validity.status === "valid") {
-      // Reopening the app counts as an action: push the 20-day window
-      // back out from now, rather than from whenever the member last
-      // happened to log in.
-      touchSession();
-      setSession(loadSession());
-    } else if (validity.status === "expired") {
-      clearSession();
-      setSession(null);
-      setSessionExpired(true);
-    } else {
-      setSession(null);
-    }
-
+    setSession(loadSession());
     setIsLoading(false);
   }, []);
 
@@ -109,27 +92,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Called by the API layer when a request comes back 401 while we believed
-  // we had a valid session: this means the JWT itself expired server-side
-  // (distinct from "no internet", which never triggers this).
+  // we had a valid session.
   const handleAuthExpiredFromServer = useCallback(() => {
     clearSession();
     setSession(null);
     setSessionExpired(true);
   }, []);
 
-  // A confirmed 401 from the server (not a network failure) means the JWT
-  // truly expired even though our local 20-day session clock hadn't run out
-  // yet (e.g. server-side revocation). Surface it the same way as a natural
-  // expiry, but never in response to a mere connectivity drop.
+  // A confirmed 401 from the server means the session is no longer accepted.
+  // Network failures do not call this handler.
   useEffect(() => onAuthExpired(handleAuthExpiredFromServer), [handleAuthExpiredFromServer]);
 
   const sessionValidity = useMemo(() => evaluateSession(session), [session]);
 
-  const renewSession = useCallback(() => {
-    if (!session) return;
-    touchSession();
-    setSession(loadSession());
-  }, [session]);
+  const renewSession = useCallback(() => {}, []);
 
   return (
     <AuthContext.Provider
