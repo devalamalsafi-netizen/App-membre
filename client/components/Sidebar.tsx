@@ -6,8 +6,6 @@ import {
   LayoutDashboard,
   User,
   LogOut,
-  Menu,
-  X,
   Home,
   FileText,
   Settings,
@@ -77,14 +75,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Hamburger Button - visible on mobile */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-scout-purple text-white rounded-lg"
-      >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
       {/* Overlay - mobile */}
       {isOpen && (
         <div
