@@ -39,10 +39,11 @@ export default function Sidebar() {
         }`}
       >
         <div className="h-20 flex items-center justify-center border-b border-gray-200 bg-gradient-to-b from-scout-purple to-purple-600">
-          <div className="text-white text-center">
-            <div className="text-2xl font-bold">ش</div>
-            <div className="text-xs">كشاف</div>
-          </div>
+          <img
+            src="https://cdn.builder.io/api/v1/image/assets%2F1f75f54747b54e29825eb23fdf70cfc1%2Fa8caeb8f3ae14cfe9ddb9534cad38297?format=webp&width=800&height=1200"
+            alt="شعار الكشفية الحسنية"
+            className="w-12 h-12 object-contain"
+          />
         </div>
 
         <nav className="flex-1 px-4 py-6 overflow-y-auto">
