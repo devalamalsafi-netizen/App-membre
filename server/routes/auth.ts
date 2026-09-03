@@ -220,19 +220,19 @@ export const handleRegister: RequestHandler = async (req, res) => {
 
 /**
  * Login user
- * Validates first_name, last_name, generated_id, and password against Supabase users table
+ * Validates first_name, last_name, generated_id or UUID, and password against Supabase users table
  */
 export const handleLogin: RequestHandler = async (req, res) => {
   try {
-    const { first_name, last_name, generated_id, password } = req.body;
+    const { first_name, last_name, generated_id, uuid, password } = req.body;
     const normalizedFirstName = normalizeIdentifier(first_name);
     const normalizedLastName = normalizeIdentifier(last_name);
     const normalizedGeneratedId = normalizeIdentifier(generated_id);
+    const normalizedUuid = typeof uuid === "string" ? uuid.trim().toLowerCase() : "";
 
-    // Validate required fields
-    if (!normalizedFirstName || !normalizedLastName || !normalizedGeneratedId || !password) {
+    if (!normalizedFirstName || !normalizedLastName || (!normalizedGeneratedId && !normalizedUuid) || !password) {
       return res.status(400).json({
-        error: "First name, last name, ID, and password are required"
+        error: "First name, last name, ID ou UUID, and password are required"
       });
     }
 
@@ -244,7 +244,8 @@ export const handleLogin: RequestHandler = async (req, res) => {
     const data = candidates?.find((candidate) =>
       normalizeIdentifier(candidate.first_name) === normalizedFirstName
       && normalizeIdentifier(candidate.last_name) === normalizedLastName
-      && normalizeIdentifier(candidate.generated_id) === normalizedGeneratedId
+      && ((normalizedUuid && String(candidate.id).toLowerCase() === normalizedUuid)
+        || (normalizedGeneratedId && normalizeIdentifier(candidate.generated_id) === normalizedGeneratedId))
     );
 
     if (error || !data) {
