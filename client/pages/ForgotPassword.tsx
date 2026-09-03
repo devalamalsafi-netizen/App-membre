@@ -36,7 +36,10 @@ export default function ForgotPassword() {
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "Impossible d’envoyer le code.");
-      setEmailMasked(result.email || "votre adresse e-mail");
+      if (typeof result.email !== "string" || !result.email.includes("@")) {
+        throw new Error("Le serveur n’a pas renvoyé l’adresse de récupération. Veuillez redéployer les fonctions Netlify.");
+      }
+      setEmailMasked(result.email);
       setPhase("pin");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Impossible d’envoyer le code.");
