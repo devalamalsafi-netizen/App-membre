@@ -239,7 +239,7 @@ export const handleLogin: RequestHandler = async (req, res) => {
     // Compare normalized values so legacy rows containing accidental spaces remain usable.
     const { data: candidates, error } = await getSupabaseAdminClient()
       .from("users")
-      .select("id, generated_id, first_name, last_name, user_phone, email, gender, password");
+      .select("id, generated_id, first_name, last_name, user_phone, email, gender, password, qr_code_url, payment_completed, documents_completed");
 
     const data = candidates?.find((candidate) =>
       normalizeIdentifier(candidate.first_name) === normalizedFirstName
@@ -298,6 +298,9 @@ export const handleLogin: RequestHandler = async (req, res) => {
       user_phone: data.user_phone,
       email: data.email,
       gender: data.gender,
+      qr_code_url: data.qr_code_url,
+      payment_completed: !!data.payment_completed,
+      documents_completed: !!data.documents_completed,
       token,
     });
   } catch (error) {

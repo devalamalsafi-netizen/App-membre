@@ -5,6 +5,7 @@ import { listQrRecords } from "@/lib/offline/qrOfflineStore";
 import { listSyncQueue } from "@/lib/offline/syncQueue";
 import { useNetworkStatus } from "@/lib/offline/network";
 import { runSync } from "@/lib/offline/syncEngine";
+import { useAuth } from "@/context/AuthContext";
 import type { OfflineQrRecord, SyncQueueItem } from "@/lib/offline/types";
 import { RefreshCw, UploadCloud, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 
@@ -21,6 +22,7 @@ export default function SyncCache() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const { isOnline } = useNetworkStatus();
+  const { user } = useAuth();
 
   const loadCache = useCallback(async () => {
     setLoading(true);
@@ -105,6 +107,8 @@ export default function SyncCache() {
                     createdAt={r.scanned_at}
                     status={r.synced ? "synced" : r.sync_error ? "failed" : "pending"}
                     errorMessage={r.sync_error || undefined}
+                    memberQrCodeUrl={user?.qr_code_url}
+                    membershipStatus={getMembershipStatus(user?.payment_completed, user?.documents_completed)}
                   />
                 ))}
               </div>
@@ -124,6 +128,8 @@ export default function SyncCache() {
                     createdAt={item.created_at}
                     status={item.status === "synced" ? "synced" : item.status === "failed" ? "failed" : "pending"}
                     errorMessage={item.last_error || undefined}
+                    memberQrCodeUrl={user?.qr_code_url}
+                    membershipStatus={getMembershipStatus(user?.payment_completed, user?.documents_completed)}
                   />
                 ))}
               </div>
@@ -133,6 +139,13 @@ export default function SyncCache() {
       )}
     </Layout>
   );
+}
+
+function getMembershipStatus(paymentCompleted?: boolean, documentsCompleted?: boolean) {
+  if (paymentCompleted && documentsCompleted) return "العضوية مكتملة";
+  if (paymentCompleted) return "الواجب مؤدى - الوثائق غير مكتملة";
+  if (documentsCompleted) return "الوثائق مكتملة - الواجب غير مؤدى";
+  return "العضوية غير مكتملة";
 }
 
 function EmptyState({ label }: { label: string }) {
@@ -148,11 +161,15 @@ function CacheRow({
   createdAt,
   status,
   errorMessage,
+  memberQrCodeUrl,
+  membershipStatus,
 }: {
   title: string;
   createdAt: string;
   status: "pending" | "synced" | "failed";
   errorMessage?: string;
+  memberQrCodeUrl?: string | null;
+  membershipStatus: string;
 }) {
   const badge =
     status === "synced" ? (
@@ -174,6 +191,17 @@ function CacheRow({
       <div className="min-w-0 flex-1 text-right">
         <p className="truncate font-black text-gray-800">{title || "بدون عنوان"}</p>
         <p className="text-xs font-bold text-gray-400">{new Date(createdAt).toLocaleString("ar-MA")}</p>
+        <div className="mt-3 flex items-center gap-3">
+          {memberQrCodeUrl ? (
+            <img src={memberQrCodeUrl} alt="QR العضو" className="h-14 w-14 rounded border border-gray-200 object-contain" />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed border-gray-300 text-center text-[9px] font-bold text-gray-400">QR<br />غير مولد</div>
+          )}
+          <div>
+            <p className="text-xs font-black text-scout-purple">حالة العضوية</p>
+            <p className="text-xs font-bold text-gray-600">{membershipStatus}</p>
+          </div>
+        </div>
         {status === "failed" && errorMessage && (
           <p className="mt-1 break-all text-[10px] font-mono text-red-400">{errorMessage}</p>
         )}

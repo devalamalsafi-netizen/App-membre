@@ -20,6 +20,9 @@ export interface User {
   user_phone: string;
   email?: string;
   gender: string;
+  qr_code_url?: string | null;
+  payment_completed?: boolean;
+  documents_completed?: boolean;
   token?: string;
 }
 
