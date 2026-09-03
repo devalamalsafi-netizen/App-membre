@@ -101,7 +101,7 @@ export default function Sidebar() {
             setIsOpen((open) => !open);
           }
         }}
-        className={`fixed top-0 h-screen w-[5px] z-[60] cursor-pointer bg-scout-purple shadow-lg transition-[right] duration-300 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+        className={`fixed top-0 h-20 w-[5px] z-[60] cursor-pointer bg-scout-purple shadow-lg transition-[right] duration-300 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
           isOpen ? "right-64" : "right-0"
         }`}
       />
