@@ -4,10 +4,19 @@ import Layout from "../components/Layout";
 import { apiUrl } from "@/lib/api-config";
 
 export default function ForgotPassword() {
-  const [formData, setFormData] = useState({ uuid: "", guardianCin: "", email: "" });
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    generatedId: "",
+    uuid: "",
+  });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const updateField = (field: keyof typeof formData, value: string) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -19,9 +28,10 @@ export default function ForgotPassword() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          generated_id: formData.generatedId,
           uuid: formData.uuid,
-          guardian_cin: formData.guardianCin,
-          email: formData.email,
         }),
       });
       const result = await response.json();
@@ -45,40 +55,49 @@ export default function ForgotPassword() {
       <div className="max-w-md mx-auto space-y-6" dir="rtl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">استعادة كلمة المرور</h1>
-          <p className="text-gray-600">أدخل UUID ورقم بطاقة تعريف الولي والبريد الإلكتروني</p>
+          <p className="text-gray-600">أدخل معلومات العضو للتحقق من هويتك</p>
         </div>
 
         {!submitted ? (
           <div className="bg-white rounded-lg shadow-lg border-r-4 border-red-600 p-8">
             <form onSubmit={handleSubmit} className="space-y-4">
               <label className="block text-sm font-bold text-gray-700">
-                UUID
+                الاسم الشخصي
+                <input
+                  type="text"
+                  value={formData.firstName}
+                  onChange={(event) => updateField("firstName", event.target.value)}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
+                />
+              </label>
+              <label className="block text-sm font-bold text-gray-700">
+                الاسم العائلي
+                <input
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(event) => updateField("lastName", event.target.value)}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
+                />
+              </label>
+              <label className="block text-sm font-bold text-gray-700">
+                المعرف (ID)
+                <input
+                  type="text"
+                  value={formData.generatedId}
+                  onChange={(event) => updateField("generatedId", event.target.value)}
+                  required
+                  dir="ltr"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
+                />
+              </label>
+              <label className="block text-sm font-bold text-gray-700">
+                UUID للتأكيد
                 <input
                   type="text"
                   value={formData.uuid}
-                  onChange={(event) => setFormData({ ...formData, uuid: event.target.value })}
-                  required
-                  dir="ltr"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
-                />
-              </label>
-              <label className="block text-sm font-bold text-gray-700">
-                رقم بطاقة التعريف الوطنية للولي
-                <input
-                  type="text"
-                  value={formData.guardianCin}
-                  onChange={(event) => setFormData({ ...formData, guardianCin: event.target.value })}
-                  required
-                  dir="ltr"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
-                />
-              </label>
-              <label className="block text-sm font-bold text-gray-700">
-                البريد الإلكتروني
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(event) => setFormData({ ...formData, email: event.target.value })}
+                  onChange={(event) => updateField("uuid", event.target.value)}
                   required
                   dir="ltr"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-600"

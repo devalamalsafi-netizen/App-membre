@@ -28,70 +28,51 @@ function escapeHtml(value: unknown): string {
 }
 
 const IDENTITY_ERROR =
-  "Identité non vérifiée. Vérifiez votre UUID, le CIN du parent et l’adresse e-mail.";
+  "Identité non vérifiée. Vérifiez le nom, le prénom, l’ID et l’UUID.";
 
 async function notifyPasswordReset(email: string, name: string, uuid: string) {
-  const subject = "Mot de passe réinitialisé - Scoutisme Hassania";
-  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#1f2937"><h2>Mot de passe réinitialisé</h2><p>Bonjour ${escapeHtml(name)},</p><p>Votre mot de passe a été réinitialisé. Utilisez votre UUID comme nouveau mot de passe lors de votre prochaine connexion.</p><p><strong>UUID :</strong> ${escapeHtml(uuid)}</p><p>Si vous n’êtes pas à l’origine de cette demande, contactez immédiatement l’administrateur.</p></div>`;
-  const brevoApiKey = process.env.BREVO_API_KEY;
-
-  if (brevoApiKey) {
-    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        "api-key": brevoApiKey,
-      },
-      body: JSON.stringify({
-        sender: {
-          name: "Scoutisme Hassania Marocain",
-          email: process.env.SMTP_USER || "no-reply@shm.ma",
-        },
-        to: [{ email, name }],
-        subject,
-        htmlContent: html,
-      }),
-    });
-    if (response.ok) return true;
-    console.error("Erreur Brevo (notification reset):", response.status, await response.text());
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  if (!smtpUser || !smtpPass) {
+    throw new Error("SMTP_USER et SMTP_PASS doivent être configurés.");
   }
 
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"Scoutisme Hassania" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject,
-      html,
-    });
-    return true;
-  }
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : true,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+  const safeName = escapeHtml(name);
+  const safeUuid = escapeHtml(uuid);
 
-  console.warn("Aucun fournisseur e-mail configuré pour la notification de reset.");
-  return false;
+  await transporter.sendMail({
+    from: `"Scoutisme Hassania" <${smtpUser}>`,
+    to: email,
+    subject: "Mot de passe réinitialisé - Scoutisme Hassania",
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#1f2937"><h2>Mot de passe réinitialisé</h2><p>Bonjour ${safeName},</p><p>Votre mot de passe a été réinitialisé. Utilisez votre UUID comme nouveau mot de passe lors de votre prochaine connexion.</p><p><strong>UUID :</strong> ${safeUuid}</p><p>Si vous n’êtes pas à l’origine de cette demande, contactez immédiatement l’administrateur.</p></div>`,
+  });
 }
 
 export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
   try {
-    const { uuid, guardian_cin, email } = req.body || {};
+    const { first_name, last_name, generated_id, uuid } = req.body || {};
+    const normalizedFirstName = normalize(first_name);
+    const normalizedLastName = normalize(last_name);
+    const normalizedGeneratedId = normalize(generated_id);
     const normalizedUuid = typeof uuid === "string" ? uuid.trim() : "";
-    const normalizedGuardianCin = normalize(guardian_cin);
-    const normalizedEmail = normalize(email);
 
-    if (!normalizedUuid || !normalizedGuardianCin || !normalizedEmail) {
-      return res.status(400).json({ ok: false, error: "UUID, CIN du parent et e-mail sont requis." });
+    if (!normalizedFirstName || !normalizedLastName || !normalizedGeneratedId || !normalizedUuid) {
+      return res.status(400).json({
+        ok: false,
+        error: "Nom, prénom, ID et UUID sont requis.",
+      });
     }
 
     const adminClient = getSupabaseAdminClient();
     const { data: user, error } = await adminClient
       .from("users")
-      .select("id, first_name, last_name, guardian_cin, email")
+      .select("id, first_name, last_name, generated_id, email")
       .eq("id", normalizedUuid)
       .maybeSingle();
 
@@ -102,8 +83,10 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
 
     if (
       !user ||
-      normalize(user.guardian_cin) !== normalizedGuardianCin ||
-      normalize(user.email) !== normalizedEmail
+      normalize(user.first_name) !== normalizedFirstName ||
+      normalize(user.last_name) !== normalizedLastName ||
+      normalize(user.generated_id) !== normalizedGeneratedId ||
+      !normalize(user.email)
     ) {
       return res.status(400).json({ ok: false, error: IDENTITY_ERROR });
     }
@@ -119,23 +102,19 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
       return res.status(500).json({ ok: false, error: "Impossible de mettre à jour le mot de passe." });
     }
 
-    let emailSent = false;
     try {
-      emailSent = await notifyPasswordReset(
+      await notifyPasswordReset(
         String(user.email),
         `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         normalizedUuid,
       );
     } catch (notificationError) {
-      console.error("Erreur notification reset password:", notificationError);
+      console.error("Erreur SMTP Gmail (notification reset):", notificationError);
     }
 
     return res.json({
       ok: true,
-      emailSent,
-      message: emailSent
-        ? "Mot de passe réinitialisé. Un e-mail de confirmation a été envoyé."
-        : "Mot de passe réinitialisé. Vous pouvez vous connecter avec votre UUID.",
+      message: "Mot de passe réinitialisé. Vous pouvez vous connecter avec votre UUID.",
     });
   } catch (error) {
     console.error("Erreur handleRequestPasswordReset:", error);
@@ -143,9 +122,9 @@ export const handleRequestPasswordReset: RequestHandler = async (req, res) => {
   }
 };
 
-export const handleResetPassword: RequestHandler = async (req, res) => {
+export const handleResetPassword: RequestHandler = async (_req, res) => {
   return res.status(410).json({
     ok: false,
-    error: "Ce lien n’est plus utilisé. Recommencez la réinitialisation avec votre UUID et le CIN du parent.",
+    error: "Ce lien n’est plus utilisé. Recommencez avec votre nom, prénom, ID et UUID.",
   });
 };
