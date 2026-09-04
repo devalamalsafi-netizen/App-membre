@@ -1,184 +1,94 @@
-import { useEffect, useState, useCallback } from "react";
 import Layout from "@/components/Layout";
-import { Button } from "@/components/ui/button";
-import { listQrRecords } from "@/lib/offline/qrOfflineStore";
-import { listSyncQueue } from "@/lib/offline/syncQueue";
+import { useAuth } from "@/context/AuthContext";
 import { useNetworkStatus } from "@/lib/offline/network";
-import { runSync } from "@/lib/offline/syncEngine";
-import type { OfflineQrRecord, SyncQueueItem } from "@/lib/offline/types";
-import { RefreshCw, UploadCloud, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { User as UserIcon, Phone, Mail, IdCard, ShieldCheck } from "lucide-react";
 
 /**
- * "Espace de stockage" -- lets a member see what's saved locally on their
- * device (attendance scans + membership document uploads) while offline,
- * and what's still waiting to reach the server. Reads the SAME local
- * database the rest of the offline system already writes to
- * (client/lib/offline/*) rather than a separate parallel store.
+ * Offline member info page -- shows the member's own general info + QR
+ * code so it stays readable with no network connection, since the whole
+ * point of a session persisted in @capacitor/preferences is for it to
+ * survive being offline. No attendance/sync-queue/ideas data lives here
+ * anymore: this page is personal info only, read straight from the
+ * locally persisted session (AuthContext already restores that from
+ * native storage on native builds).
  */
 export default function SyncCache() {
-  const [qrRecords, setQrRecords] = useState<OfflineQrRecord[]>([]);
-  const [queueItems, setQueueItems] = useState<SyncQueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
-
-  const loadCache = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [records, queue] = await Promise.all([listQrRecords(), listSyncQueue()]);
-      setQrRecords(records);
-      setQueueItems(queue);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCache();
-  }, [loadCache]);
-
-  const handlePushAll = async () => {
-    setSyncing(true);
-    try {
-      await runSync();
-    } finally {
-      setSyncing(false);
-      await loadCache();
-    }
-  };
-
-  const pendingCount = queueItems.filter((item) => item.status !== "synced").length;
 
   return (
     <Layout currentPage="sync-cache">
       <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="mb-3 text-4xl font-black shm-text-gradient uppercase tracking-wider">
-            مساحة تخزين البيانات
+            معلوماتي
           </h1>
-          <div className="flex items-center gap-3">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${
-                isOnline ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
-              }`}
-            >
-              <span className={`h-2 w-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-amber-500"}`} />
-              {isOnline ? "متصل" : "غير متصل"}
-            </span>
-            {pendingCount > 0 && (
-              <span className="text-xs font-black text-gray-400">{pendingCount} عنصر بانتظار المزامنة</span>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <Button onClick={loadCache} variant="outline" className="gap-2 rounded-xl font-black" disabled={loading}>
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            تحديث
-          </Button>
-          <Button
-            onClick={handlePushAll}
-            className="gap-2 rounded-xl font-black"
-            disabled={syncing || !isOnline || pendingCount === 0}
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${
+              isOnline ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+            }`}
           >
-            <UploadCloud size={16} className={syncing ? "animate-pulse" : ""} />
-            {syncing ? "جاري الإرسال..." : "دفع الكل الآن"}
-          </Button>
+            <span className={`h-2 w-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-amber-500"}`} />
+            {isOnline ? "متصل" : "غير متصل"}
+          </span>
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-24">
-          <div className="h-14 w-14 animate-spin rounded-full border-b-4 border-primary" />
+      {!user ? (
+        <div className="rounded-[2rem] border-2 border-dashed border-gray-100 bg-white py-16 text-center">
+          <p className="font-black uppercase tracking-[0.15em] text-gray-300">لا توجد بيانات محفوظة</p>
         </div>
       ) : (
-        <div className="space-y-10">
-          <section>
-            <h2 className="mb-4 text-lg font-black text-gray-700">الحضور الممسوح ({qrRecords.length})</h2>
-            {qrRecords.length === 0 ? (
-              <EmptyState label="لا توجد عمليات مسح مخزنة محليا" />
+        <div className="grid gap-6 sm:grid-cols-[auto,1fr] sm:items-start">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            {user.qr_code_url ? (
+              <img
+                src={user.qr_code_url}
+                alt="QR العضو"
+                className="h-40 w-40 rounded-xl border border-gray-200 object-contain"
+              />
             ) : (
-              <div className="space-y-3">
-                {qrRecords.map((r) => (
-                  <CacheRow
-                    key={r.id}
-                    title={r.session_title || "حصة كشفية"}
-                    createdAt={r.scanned_at}
-                    status={r.synced ? "synced" : r.sync_error ? "failed" : "pending"}
-                    errorMessage={r.sync_error || undefined}
-                  />
-                ))}
+              <div className="flex h-40 w-40 items-center justify-center rounded-xl border border-dashed border-gray-300 text-center text-xs font-bold text-gray-400">
+                QR غير مولد
               </div>
             )}
-          </section>
+            <p className="text-xs font-black text-scout-purple">رمز العضوية</p>
+          </div>
 
-          <section>
-            <h2 className="mb-4 text-lg font-black text-gray-700">بانتظار الإرسال ({queueItems.length})</h2>
-            {queueItems.length === 0 ? (
-              <EmptyState label="لا شيء بانتظار الإرسال" />
-            ) : (
-              <div className="space-y-3">
-                {queueItems.map((item) => (
-                  <CacheRow
-                    key={item.id}
-                    title={item.type === "attendance_confirm" ? "تأكيد حضور" : "وثيقة عضوية"}
-                    createdAt={item.created_at}
-                    status={item.status === "synced" ? "synced" : item.status === "failed" ? "failed" : "pending"}
-                    errorMessage={item.last_error || undefined}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+          <div className="space-y-3 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <InfoRow icon={<UserIcon size={16} />} label="الاسم الكامل" value={`${user.first_name} ${user.last_name}`} />
+            <InfoRow icon={<IdCard size={16} />} label="المعرف" value={user.generated_id} />
+            <InfoRow icon={<Phone size={16} />} label="الهاتف" value={user.user_phone} />
+            {user.email && <InfoRow icon={<Mail size={16} />} label="البريد الإلكتروني" value={user.email} />}
+            <InfoRow
+              icon={<ShieldCheck size={16} />}
+              label="حالة العضوية"
+              value={getMembershipStatus(user.payment_completed, user.documents_completed)}
+            />
+          </div>
         </div>
       )}
     </Layout>
   );
 }
 
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="rounded-[2rem] border-2 border-dashed border-gray-100 bg-white py-16 text-center">
-      <p className="font-black uppercase tracking-[0.15em] text-gray-300">{label}</p>
-    </div>
-  );
+function getMembershipStatus(paymentCompleted?: boolean, documentsCompleted?: boolean) {
+  if (paymentCompleted && documentsCompleted) return "العضوية مكتملة";
+  if (paymentCompleted) return "الواجب مؤدى - الوثائق غير مكتملة";
+  if (documentsCompleted) return "الوثائق مكتملة - الواجب غير مؤدى";
+  return "العضوية غير مكتملة";
 }
 
-function CacheRow({
-  title,
-  createdAt,
-  status,
-  errorMessage,
-}: {
-  title: string;
-  createdAt: string;
-  status: "pending" | "synced" | "failed";
-  errorMessage?: string;
-}) {
-  const badge =
-    status === "synced" ? (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-600">
-        <CheckCircle2 size={14} /> تمت المزامنة
-      </span>
-    ) : status === "failed" ? (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
-        <AlertCircle size={14} /> فشلت المزامنة
-      </span>
-    ) : (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-600">
-        <Clock size={14} /> بانتظار الإرسال
-      </span>
-    );
-
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="flex items-center gap-3 border-b border-gray-50 pb-3 last:border-0 last:pb-0">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-50 text-scout-purple">
+        {icon}
+      </span>
       <div className="min-w-0 flex-1 text-right">
-        <p className="truncate font-black text-gray-800">{title || "بدون عنوان"}</p>
-        <p className="text-xs font-bold text-gray-400">{new Date(createdAt).toLocaleString("ar-MA")}</p>
-        {status === "failed" && errorMessage && (
-          <p className="mt-1 break-all text-[10px] font-mono text-red-400">{errorMessage}</p>
-        )}
+        <p className="text-xs font-bold text-gray-400">{label}</p>
+        <p className="truncate font-black text-gray-800">{value || "—"}</p>
       </div>
-      {badge}
     </div>
   );
 }
