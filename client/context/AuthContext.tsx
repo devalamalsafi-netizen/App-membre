@@ -50,11 +50,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
-  // Restore the local session before the first authenticated render. The
-  // WebView localStorage used by Capacitor persists across app restarts.
+  // Restore the local session before the first authenticated render.
+  // On native builds this reads from native persistent storage
+  // (@capacitor/preferences) so the session survives the OS killing the
+  // app process; on web it reads from localStorage as before.
   useEffect(() => {
-    setSession(loadSession());
-    setIsLoading(false);
+    let cancelled = false;
+    loadSession().then((restored) => {
+      if (!cancelled) {
+        setSession(restored);
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(
@@ -72,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const userData = (await response.json()) as User;
       const newSession = buildSession(userData);
-      saveSession(newSession);
+      await saveSession(newSession);
       setSession(newSession);
       setSessionExpired(false);
     },
@@ -81,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const hadPendingSync = await hasPendingSyncItems();
-    clearSession();
+    await clearSession();
     setSession(null);
     setSessionExpired(false);
     return { hadPendingSync };
