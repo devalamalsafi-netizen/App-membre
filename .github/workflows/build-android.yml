@@ -1,7 +1,7 @@
 name: Build Android APK (Portail Membre)
 
 # Triggered manually or on pushes to ai_main_fd88f290a6c54596ad0d. Produces a debug APK you can
-# install directly (Paramètres > Sécurité > Sources inconnues sur Android)
+# install directly (ParamÃ¨tres > SÃ©curitÃ© > Sources inconnues sur Android)
 # without needing a Play Store listing or a signing key.
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build web assets for the APK
         # VITE_API_BASE_URL must point at the deployed Netlify site: the
@@ -118,7 +118,7 @@ jobs:
   # ---------------------------------------------------------------------
   build-apk-release:
     runs-on: ubuntu-latest
-    # NOTE: the `secrets` context cannot be used in a job-level `if:` —
+    # NOTE: the `secrets` context cannot be used in a job-level `if:` â€”
     # GitHub Actions only exposes it inside steps. So this job always
     # starts, and its first step decides (via a step output) whether the
     # rest of the job should actually run.
@@ -154,7 +154,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.check-secrets.outputs.skip == 'false'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build web assets for the APK
         if: steps.check-secrets.outputs.skip == 'false'
