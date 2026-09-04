@@ -14,6 +14,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AccountConfirmation from "./pages/AccountConfirmation";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
@@ -62,6 +63,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/account-confirmation" element={<AccountConfirmation />} />
 
               {/* Protected routes - require authentication */}

@@ -234,6 +234,7 @@ export default function Register() {
           birth_date: formData.birthDate,
           gender: formData.gender,
           user_phone: formData.userPhone,
+          email: formData.email,
           patrol_id: formData.patrol,
           role_id: formData.role,
           is_high_patrol: formData.isHighPatrol,

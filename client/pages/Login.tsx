@@ -12,6 +12,7 @@ export default function Login() {
     first_name: "",
     last_name: "",
     generated_id: "",
+    uuid: "",
     password: "",
   });
   const [error, setError] = useState("");
@@ -31,8 +32,8 @@ export default function Login() {
     setError("");
     setLoading(true);
 
-    if (!formData.first_name || !formData.last_name || !formData.generated_id || !formData.password) {
-      setError("الرجاء ملء جميع الحقول");
+    if (!formData.first_name || !formData.last_name || (!formData.generated_id && !formData.uuid) || !formData.password) {
+      setError("الرجاء ملء الاسم واللقب ورقم العضو أو UUID وكلمة المرور");
       setLoading(false);
       return;
     }
@@ -45,6 +46,7 @@ export default function Login() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           generated_id: formData.generated_id,
+          uuid: formData.uuid,
           password: formData.password,
         }),
       });
@@ -139,6 +141,21 @@ export default function Login() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  UUID (اختياري إذا استعملت رقم العضو)
+                </label>
+                <input
+                  type="text"
+                  name="uuid"
+                  value={formData.uuid}
+                  onChange={handleChange}
+                  dir="ltr"
+                  placeholder="UUID"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-scout-purple"
+                />
+              </div>
+
               <PasswordInput
                 name="password"
                 value={formData.password}
@@ -162,7 +179,7 @@ export default function Login() {
                 هل نسيت كلمة المرور؟
               </p>
               <Link
-                to="#"
+                to="/forgot-password"
                 className="block text-center text-scout-purple font-bold hover:text-purple-700 transition-colors mb-6"
               >
                 إعادة تعيين كلمة المرور

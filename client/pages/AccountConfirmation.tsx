@@ -139,6 +139,7 @@ export default function AccountConfirmation() {
           sujet: "Vos documents d'inscription",
           nom: `${registrationData.firstName || ""} ${registrationData.lastName || ""}`.trim(),
           message: "Vous trouverez en pièces jointes votre carte de membre et votre QR code.",
+          includePin: false,
           attachments: [
             { filename: `SHM_Account_${memberId}.pdf`, url: pdfUrl },
             { filename: `SHM_Account_${memberId}.png`, url: qrUrl },

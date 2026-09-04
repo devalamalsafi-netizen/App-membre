@@ -17,7 +17,8 @@
 import { Capacitor } from "@capacitor/core";
 
 function resolveApiBaseUrl(): string {
-  const configured = (import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+  const productionBaseUrl = "https://mon-shm.netlify.app";
+  const configured = (import.meta.env.VITE_API_BASE_URL || productionBaseUrl).trim().replace(/\/+$/, "");
 
   if (Capacitor.isNativePlatform()) {
     if (!configured) {
@@ -31,8 +32,15 @@ function resolveApiBaseUrl(): string {
     return configured;
   }
 
-  // Web build: relative paths work, no prefix needed.
-  return configured;
+  // Web preview and production: use the same origin the app is being
+  // served from, so every Netlify/Builder deployment (mon-shm,
+  // app-membre, previews, etc.) talks to its own API instead of always
+  // hitting the hardcoded productionBaseUrl.
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return productionBaseUrl;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();

@@ -39,18 +39,21 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, "&#039;");
 }
 
-function buildHtmlEmail({ name, message, pin }: { name?: string; message: string; pin: string }) {
+function buildHtmlEmail({ name, message, pin }: { name?: string; message: string; pin?: string }) {
   const safeName = escapeHtml(name || "un visiteur");
   const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br/>");
+  const pinSection = pin
+    ? `<p>Code de confirmation :</p><div class="pin">${pin}</div><p>Ce code expire dans 5 minutes et ne peut être utilisé qu'une seule fois.</p>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><style>
 body{font-family:Arial,sans-serif;background:#f4f4f7;padding:20px}.card{max-width:600px;margin:auto;background:#fff;border-radius:8px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.08)}h1{color:#2c3e50;font-size:20px}p{color:#444;line-height:1.5}.pin{display:inline-block;margin:16px 0;padding:12px 24px;font-size:28px;letter-spacing:6px;font-weight:bold;color:#fff;background:#2c3e50;border-radius:6px}.footer{margin-top:20px;font-size:12px;color:#999;text-align:center}
-</style></head><body><div class="card"><h1>Nouveau message de ${safeName}</h1><p>${safeMessage}</p><p>Code de confirmation :</p><div class="pin">${pin}</div><p>Ce code expire dans 5 minutes et ne peut être utilisé qu'une seule fois.</p></div><div class="footer">Envoyé automatiquement depuis le site web</div></body></html>`;
+</style></head><body><div class="card"><h1>Nouveau message de ${safeName}</h1><p>${safeMessage}</p>${pinSection}</div><div class="footer">Envoyé automatiquement depuis le site web</div></body></html>`;
 }
 
 export const handleSendEmail: RequestHandler = async (req, res) => {
-  const { destinataire, sujet, nom, message, attachments } = req.body ?? {};
+  const { destinataire, sujet, nom, message, attachments, includePin = true } = req.body ?? {};
   if (typeof destinataire !== "string" || !destinataire.trim() || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ ok: false, error: "destinataire et message sont requis." });
   }
@@ -69,12 +72,14 @@ export const handleSendEmail: RequestHandler = async (req, res) => {
       }
     },
   );
-  const pin = generatePin();
-  const supabase = getSupabaseAdminClient();
-  const { error: insertError } = await supabase.from("pins").insert({ email, pin, used: false });
-  if (insertError) {
-    console.error("Erreur de stockage du PIN :", insertError);
-    return res.status(500).json({ ok: false, error: "Impossible de stocker le PIN." });
+  const pin = includePin ? generatePin() : undefined;
+  if (pin) {
+    const supabase = getSupabaseAdminClient();
+    const { error: insertError } = await supabase.from("pins").insert({ email, pin, used: false });
+    if (insertError) {
+      console.error("Erreur de stockage du PIN :", insertError);
+      return res.status(500).json({ ok: false, error: "Impossible de stocker le PIN." });
+    }
   }
 
   try {
