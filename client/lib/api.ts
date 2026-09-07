@@ -497,4 +497,3 @@ export async function deleteFile(bucket: string, path: string): Promise<boolean>
     return false;
   }
 }
-
