@@ -68,6 +68,16 @@ export async function loadSession(): Promise<StoredSession | null> {
   }
 }
 
+// Reads the auth token the same way saveSession() writes it: from native
+// Preferences on Android/iOS, from localStorage on web. Callers must never
+// read "authToken" straight out of localStorage -- on native builds that
+// key can be empty/stale after the OS kills the app process, which was
+// silently sending unauthenticated requests and forcing a re-login on next
+// launch even though a valid session was actually stored.
+export async function getAuthToken(): Promise<string | null> {
+  return storageGet("authToken");
+}
+
 export async function clearSession(): Promise<void> {
   await storageRemove(SESSION_KEY);
   await storageRemove("authToken");
