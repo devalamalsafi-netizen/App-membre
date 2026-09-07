@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { apiUrl } from './api-config';
 import { AuthExpiredError, emitAuthExpired } from './offline/authEvents';
+import { getAuthToken } from './offline/sessionStore';
 
 export interface AttendanceSession {
   id: string;
@@ -22,7 +23,10 @@ export interface AttendanceConfirmation {
 }
 
 export async function authenticatedFetch(path: string, init: RequestInit = {}) {
-  const token = localStorage.getItem("authToken");
+  // Must go through sessionStore, not localStorage directly: on native
+  // Android/iOS the session lives in @capacitor/preferences and can outlive
+  // an app kill even when localStorage has already been cleared by the OS.
+  const token = await getAuthToken();
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -493,3 +497,4 @@ export async function deleteFile(bucket: string, path: string): Promise<boolean>
     return false;
   }
 }
+
